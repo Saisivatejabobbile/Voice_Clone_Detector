@@ -1,0 +1,24 @@
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary and local data
+logs/
+temp/
+uploads/
+voiceshield.db
+*.sqlite3
+
+# Models / Large checkpoints (uncomment if models are too big for git)
+# models/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store

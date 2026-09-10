@@ -1,0 +1,56 @@
+﻿<!DOCTYPE html>
+<html>
+<head><title>WebRTC Test</title></head>
+<body>
+<h1>WebSocket Test</h1>
+<button id="connect">Connect WebSocket</button>
+<button id="call">Call User 2</button>
+<div id="status"></div>
+<script>
+const status = document.getElementById('status');
+let ws = null;
+const token = localStorage.getItem('voiceshield_token');
+
+document.getElementById('connect').onclick = () => {
+  if (!token) {
+    status.innerHTML = '<p style="color:red">No token found. Please login first at http://localhost:5173</p>';
+    return;
+  }
+  
+  ws = new WebSocket(`ws://localhost:8000/ws/signaling?token=${token}`);
+  
+  ws.onopen = () => {
+    status.innerHTML += '<p style="color:green">✓ WebSocket CONNECTED</p>';
+  };
+  
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    status.innerHTML += `<p style="color:blue">Received: ${msg.type}</p>`;
+  };
+  
+  ws.onerror = (error) => {
+    status.innerHTML += `<p style="color:red">✗ Error: ${error}</p>`;
+  };
+  
+  ws.onclose = () => {
+    status.innerHTML += '<p style="color:orange">WebSocket CLOSED</p>';
+  };
+};
+
+document.getElementById('call').onclick = () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    status.innerHTML += '<p style="color:red">WebSocket not connected!</p>';
+    return;
+  }
+  
+  ws.send(JSON.stringify({
+    type: 'call_initiate',
+    callee_id: 2,
+    callee_name: 'Raya'
+  }));
+  
+  status.innerHTML += '<p style="color:green">Call initiated to User 2!</p>';
+};
+</script>
+</body>
+</html>

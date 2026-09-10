@@ -1,0 +1,66 @@
+﻿ADD THESE IMPORTS AT THE TOP OF Dashboard.jsx (after line 1):
+
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebRTCComplete } from '../hooks/useWebRTCComplete';
+import IncomingCallModal from '../components/IncomingCallModal';
+import CallControls from '../components/CallControls';
+
+ADD THESE HOOKS AFTER const navigate = useNavigate();:
+
+  // WebRTC Integration
+  const token = localStorage.getItem('voiceshield_token');
+  const signalingWS = useWebSocket(
+    token ? 'ws://localhost:8000/ws/signaling' : null,
+    token
+  );
+  const {
+    callState,
+    incomingCall,
+    isMuted,
+    callDuration,
+    formatDuration,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    toggleMute,
+    endCall,
+  } = useWebRTCComplete(signalingWS);
+
+ADD THIS BUTTON (replace Test Incoming Call button):
+
+              <button 
+                onClick={() => initiateCall(2, 'Raya')}
+                disabled={!signalingWS?.isConnected}
+                className=w-full p-4 bg-primary-600 hover:bg-primary-700 disabled:bg-dark-700 rounded-lg text-left transition-colors group
+              >
+                <div className=lex items-center gap-3>
+                  <div className=w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center>
+                    <PhoneIcon className=w-5 h-5 text-white />
+                  </div>
+                  <div>
+                    <p className=	ext-white font-medium>Call Raya (WebRTC)</p>
+                    <p className=	ext-gray-300 text-sm>{signalingWS?.isConnected ? 'Ready to call' : 'Connecting...'}</p>
+                  </div>
+                </div>
+              </button>
+
+ADD BEFORE </Layout> closing tag:
+
+      {/* Incoming Call Modal */}
+      <IncomingCallModal
+        callerInfo={incomingCall}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+      />
+      
+      {/* Active Call Controls */}
+      {callState === 'connected' && (
+        <div className=ixed bottom-6 left-1/2 transform -translate-x-1/2 z-50>
+          <CallControls
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
+            onEndCall={endCall}
+            callDuration={formatDuration()}
+          />
+        </div>
+      )}
