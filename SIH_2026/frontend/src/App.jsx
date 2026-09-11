@@ -14,6 +14,7 @@ import SettingsPage from './pages/SettingsPage';
 import AboutPage from './pages/AboutPage';
 import ComponentShowcase from './pages/ComponentShowcase';
 import ActiveCallPage from './pages/ActiveCallPage';
+import AudioAnalysisPage from './pages/AudioAnalysisPage';
 
 // Protected Route Component
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -104,6 +105,15 @@ function AppContent() {
             element={
               <ProtectedRoute>
                 <ActiveCallPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path={ROUTES.AUDIO_TEST}
+            element={
+              <ProtectedRoute>
+                <AudioAnalysisPage />
               </ProtectedRoute>
             }
           />

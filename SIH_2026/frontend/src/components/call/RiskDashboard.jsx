@@ -14,7 +14,7 @@ import { getAnalysisWebSocket } from '../../services/websocket';
  * - Multi-Language Detection Telemetry (Hindi, Telugu, Code-mixed)
  * - Usable Target Speech Telemetry
  */
-export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing }) {
+export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, externalData = null }) {
   const [voiceStatus, setVoiceStatus] = useState('INSUFFICIENT AUDIO');
   const [riskLevel, setRiskLevel] = useState('LOW');
   const [riskScore, setRiskScore] = useState(0);
@@ -27,6 +27,51 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing }) 
   const [indicators, setIndicators] = useState(null);
   const [riskHistory, setRiskHistory] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
+
+  // Synchronize with external static data (e.g. from Audio File Upload Analysis)
+  useEffect(() => {
+    if (!externalData) return;
+
+    const score = externalData.risk_score ?? externalData.riskScore ?? 0;
+    const level = externalData.risk_level ?? externalData.riskLevel ?? 'LOW';
+    const status = externalData.voice_status || (score >= 60 ? 'CLONED VOICE' : 'REAL');
+
+    setVoiceStatus(status);
+    setRiskLevel(level);
+    setRiskScore(score);
+    setConfidence(externalData.confidence ?? externalData.model_confidence ?? 0);
+    setRecommendation(externalData.recommendation || (status === 'CLONED VOICE' ? 'AI synthetic voice signature detected.' : 'Authentic human voice verified.'));
+
+    if (externalData.blockchain_audit) {
+      setBlockchainAudit(externalData.blockchain_audit);
+    }
+    if (externalData.detected_language) {
+      setDetectedLanguage(externalData.detected_language);
+    }
+    if (externalData.duration_seconds !== undefined) {
+      setTargetSpeechAnalyzed(externalData.duration_seconds);
+    }
+    if (externalData.windows_analyzed !== undefined) {
+      setWindowsAnalyzed(externalData.windows_analyzed);
+    }
+    if (externalData.acoustic_indicators || externalData.prosody_indicators) {
+      setIndicators({
+        acoustic: externalData.acoustic_indicators,
+        prosody: externalData.prosody_indicators
+      });
+    }
+
+    const timestamp = externalData.timestamp || new Date().toISOString();
+    setLastUpdate(timestamp);
+    setRiskHistory([
+      {
+        voiceStatus: status,
+        riskLevel: level,
+        riskScore: score,
+        timestamp
+      }
+    ]);
+  }, [externalData]);
 
   useEffect(() => {
     if (!callId) return;
@@ -356,7 +401,7 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing }) 
 
       {/* Meta Footer */}
       <div className="mt-5 pt-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F] flex items-center justify-between text-[11px] font-mono text-[#64748B] dark:text-[#94A3B8]">
-        <span className="truncate max-w-[180px]">Session: {callId}</span>
+        <span className="truncate max-w-[180px]">Session: {callId || externalData?.filename || 'Offline File'}</span>
         <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-sans font-semibold">
           <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
           Immutable Audit Enforced

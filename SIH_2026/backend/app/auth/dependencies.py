@@ -1,4 +1,4 @@
-﻿"""
+"""
 Authentication Dependencies
 FastAPI dependencies for protected routes
 """
@@ -61,10 +61,15 @@ async def get_current_user(
     
     logger.info(f"Looking up user with ID: {user_id}")
     
-    # Get user from database
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    # Get user from database (supports integer ID or email in sub)
+    try:
+        user_id_int = int(user_id)
+        user = db.query(User).filter(User.id == user_id_int).first()
+    except (ValueError, TypeError):
+        user = db.query(User).filter(User.email == str(user_id)).first()
+
     if user is None:
-        logger.error(f"User with ID {user_id} not found in database")
+        logger.error(f"User with identifier {user_id} not found in database")
         raise credentials_exception
     
     logger.info(f"User found: {user.email}")

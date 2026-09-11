@@ -1,4 +1,4 @@
-﻿"""
+"""
 Security Utilities
 Password hashing and JWT token management
 """
@@ -13,39 +13,36 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Password hashing context - use bcrypt only with truncation
+import bcrypt
+
+# Password hashing context - fallback
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify a plain password against a hashed password.
-    
-    Args:
-        plain_password: Plain text password
-        hashed_password: Hashed password from database
-        
-    Returns:
-        bool: True if password matches, False otherwise
+    Supports direct bcrypt verification to avoid passlib Python 3.12 wrap bugs.
     """
-    # Truncate to 72 bytes for bcrypt
-    truncated = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.verify(truncated, hashed_password)
+    if not plain_password or not hashed_password:
+        return False
+    try:
+        truncated = plain_password.encode('utf-8')[:72]
+        return bcrypt.checkpw(truncated, hashed_password.encode('utf-8'))
+    except Exception as e:
+        try:
+            return pwd_context.verify(plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore'), hashed_password)
+        except Exception:
+            return False
 
 
 def get_password_hash(password: str) -> str:
     """
-    Hash a plain password.
-    
-    Args:
-        password: Plain text password
-        
-    Returns:
-        str: Hashed password
+    Hash a plain password using bcrypt.
     """
-    # Truncate to 72 bytes for bcrypt
-    truncated = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(truncated)
+    truncated = password.encode('utf-8')[:72]
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(truncated, salt).decode('utf-8')
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:

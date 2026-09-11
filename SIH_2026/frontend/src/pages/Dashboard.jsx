@@ -188,6 +188,27 @@ export default function Dashboard() {
                 </div>
                 <span className="text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] group-hover:text-[#0B1F3A] dark:group-hover:text-white group-hover:translate-x-0.5 transition-transform">Audit →</span>
               </button>
+
+              <button 
+                onClick={() => navigate(ROUTES.AUDIO_TEST)}
+                className="w-full p-3.5 bg-cyan-50/50 dark:bg-[#00C2FF]/10 hover:bg-cyan-100/60 dark:hover:bg-[#00C2FF]/20 border border-cyan-200 dark:border-[#00C2FF]/30 rounded-xl text-left transition-all group flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#00C2FF]/20 border border-[#00C2FF]/40 rounded-lg flex items-center justify-center text-[#008BB8] dark:text-[#00C2FF] group-hover:bg-[#00C2FF] group-hover:text-[#0B1F3A] transition-colors">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-white flex items-center gap-1.5">
+                      Voice Spoof & AI Clone Lab
+                      <span className="text-[10px] bg-[#00C2FF] text-[#0B1F3A] px-1.5 py-0.2 rounded font-bold">NEW</span>
+                    </p>
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">Upload .wav audio to test whether it is AI or human with full risk dashboard</p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-[#008BB8] dark:text-[#38BDF8] group-hover:translate-x-0.5 transition-transform">Launch →</span>
+              </button>
             </div>
           </div>
         </div>

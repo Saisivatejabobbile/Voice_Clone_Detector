@@ -322,6 +322,31 @@ export const callsAPI = {
       body: JSON.stringify(callData),
     });
   },
+
+  // Analyze uploaded WAV audio file
+  analyzeAudioFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = storage.get(STORAGE_KEYS.ACCESS_TOKEN);
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/calls/analyze-audio-file`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Audio analysis failed' }));
+      throw new Error(errorData.detail || `Analysis failed with HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  },
 };
 
 // ============================================================================

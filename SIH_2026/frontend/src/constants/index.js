@@ -126,6 +126,7 @@ export const ROUTES = {
   SETTINGS: '/settings',
   ABOUT: '/about',
   CALL: '/call/:callId',
+  AUDIO_TEST: '/test-audio',
 };
 
 // WebRTC Configuration
