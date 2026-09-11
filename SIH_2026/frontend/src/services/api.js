@@ -6,7 +6,13 @@ const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
 
 // Helper function to get auth token
 const getAuthToken = () => {
-  return sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+  return (
+    sessionStorage.getItem('access_token') ||
+    localStorage.getItem('access_token') ||
+    sessionStorage.getItem('voiceshield_access_token') ||
+    localStorage.getItem('voiceshield_access_token') ||
+    ''
+  );
 };
 
 // Helper function to create headers
@@ -328,13 +334,13 @@ export const callsAPI = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = storage.get(STORAGE_KEYS.ACCESS_TOKEN);
+    const token = getAuthToken();
     const headers = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/calls/analyze-audio-file`, {
+    const response = await fetch(`${API_URL}/api/calls/analyze-audio-file`, {
       method: 'POST',
       headers,
       body: formData,
