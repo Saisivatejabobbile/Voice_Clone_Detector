@@ -1,4 +1,4 @@
-﻿// Custom hook for managing contacts with API integration
+// Custom hook for managing contacts with API integration
 import { useState, useEffect, useCallback } from 'react';
 import { contactsAPI } from '../services/api';
 
@@ -7,10 +7,12 @@ export const useContacts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch contacts from API
-  const fetchContacts = useCallback(async () => {
+  // Fetch contacts from API (supports background polling without spinner flash)
+  const fetchContacts = useCallback(async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) {
+        setLoading(true);
+      }
       setError(null);
       const response = await contactsAPI.getContacts();
       
@@ -32,10 +34,14 @@ export const useContacts = () => {
       
       setContacts(normalizedContacts);
     } catch (err) {
-      setError(err.message || 'Failed to fetch contacts');
+      if (!isBackground) {
+        setError(err.message || 'Failed to fetch contacts');
+      }
       console.error('Error fetching contacts:', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -66,9 +72,13 @@ export const useContacts = () => {
     return contacts.filter(c => c.status === 'online' || c.is_online).length;
   }, [contacts]);
 
-  // Initial fetch
+  // Initial fetch and auto-polling every 3s to reflect online status immediately
   useEffect(() => {
-    fetchContacts();
+    fetchContacts(false);
+    const interval = setInterval(() => {
+      fetchContacts(true);
+    }, 3000);
+    return () => clearInterval(interval);
   }, [fetchContacts]);
 
   return {

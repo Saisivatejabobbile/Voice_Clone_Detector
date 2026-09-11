@@ -26,8 +26,15 @@ export function useSimplePeerCall() {
   const endCallRef = useRef(null);
   const pendingSignalsRef = useRef([]);
   
-  const token = authToken || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('access_token') : null) || localStorage.getItem('access_token');
-  const ws = useStableWebSocket('ws://localhost:8000/ws/signaling', token);
+  const token = authToken || 
+    (typeof sessionStorage !== 'undefined' ? (sessionStorage.getItem('access_token') || sessionStorage.getItem('voiceshield_access_token')) : null) || 
+    (typeof localStorage !== 'undefined' ? (localStorage.getItem('access_token') || localStorage.getItem('voiceshield_access_token')) : null);
+  
+  const signalingWsUrl = typeof window !== 'undefined' 
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname || 'localhost'}:8000/ws/signaling`
+    : 'ws://localhost:8000/ws/signaling';
+
+  const ws = useStableWebSocket(signalingWsUrl, token);
 
   const drainPendingSignals = useCallback((peer) => {
     if (!peer || pendingSignalsRef.current.length === 0) return;

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Users Router
 Handles user-related operations (profile, contacts, online users)
 """
@@ -54,6 +54,8 @@ async def get_contacts(
     ).all()
     
     # Enrich contacts with registration and online status
+    from app.websockets.connection_manager import signaling_manager
+
     enriched_contacts = []
     for contact in contacts:
         contact_dict = contact.to_dict()
@@ -62,8 +64,9 @@ async def get_contacts(
         if contact.contact_user_id:
             registered_user = db.query(User).filter(User.id == contact.contact_user_id).first()
             if registered_user:
+                is_connected = signaling_manager.is_user_connected(registered_user.id)
                 contact_dict['is_registered'] = True
-                contact_dict['is_online'] = registered_user.is_online
+                contact_dict['is_online'] = bool(registered_user.is_online or is_connected)
             else:
                 contact_dict['is_registered'] = False
                 contact_dict['is_online'] = False
@@ -73,9 +76,10 @@ async def get_contacts(
             if user_by_email:
                 contact.contact_user_id = user_by_email.id
                 db.commit()
+                is_connected = signaling_manager.is_user_connected(user_by_email.id)
                 contact_dict['contact_user_id'] = user_by_email.id
                 contact_dict['is_registered'] = True
-                contact_dict['is_online'] = user_by_email.is_online
+                contact_dict['is_online'] = bool(user_by_email.is_online or is_connected)
             else:
                 contact_dict['is_registered'] = False
                 contact_dict['is_online'] = False
