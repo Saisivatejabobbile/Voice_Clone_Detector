@@ -21,6 +21,7 @@ export default function ActiveCallPage() {
     callState,
     isMuted,
     incomingCall,
+    callerDetails,
     remoteStream,
     isReceiver,
     toggleMute,
@@ -36,7 +37,7 @@ export default function ActiveCallPage() {
     }
 
     const analysisWS = getAnalysisWebSocket();
-    const token = localStorage.getItem('access_token');
+    const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
     
     if (token && callId) {
       console.log('[Analysis] Connecting as RECEIVER - will analyze CALLER audio');
@@ -75,7 +76,7 @@ export default function ActiveCallPage() {
   }, [callState, navigate]);
 
   // Determine caller info
-  const callerInfo = incomingCall || {
+  const callerInfo = incomingCall || callerDetails || {
     caller_name: 'Connected Participant',
     caller_email: 'authorized.user@network.corp'
   };

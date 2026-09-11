@@ -11,6 +11,7 @@ export function useSimplePeerCall() {
   const { token: authToken } = useAuth();
   const [callState, setCallState] = useState('idle'); // idle, calling, ringing, connected, ended
   const [incomingCall, setIncomingCall] = useState(null);
+  const [callerDetails, setCallerDetails] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [remoteStream, setRemoteStream] = useState(null);
@@ -23,16 +24,30 @@ export function useSimplePeerCall() {
   const durationIntervalRef = useRef(null);
   const callStartTimeRef = useRef(null);
   const endCallRef = useRef(null);
+  const pendingSignalsRef = useRef([]);
   
   const token = authToken || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('access_token') : null) || localStorage.getItem('access_token');
   const ws = useStableWebSocket('ws://localhost:8000/ws/signaling', token);
+
+  const drainPendingSignals = useCallback((peer) => {
+    if (!peer || pendingSignalsRef.current.length === 0) return;
+    console.log(`[WebRTC] Draining ${pendingSignalsRef.current.length} queued signals`);
+    while (pendingSignalsRef.current.length > 0) {
+      const sig = pendingSignalsRef.current.shift();
+      try {
+        peer.signal(sig);
+      } catch (err) {
+        console.warn('[WebRTC] Error signaling queued item:', err);
+      }
+    }
+  }, []);
 
   // Handle incoming call
   useEffect(() => {
     return ws.onMessage('incoming_call', (msg) => {
       console.log('[Call] Incoming call from:', msg.caller_name, 'call_id:', msg.call_id);
       currentCallIdRef.current = msg.call_id;  // Store call_id
-      setIncomingCall({
+      const callerObj = {
         call_id: msg.call_id,
         from: msg.from,
         caller_name: msg.caller_name,
@@ -44,29 +59,70 @@ export function useSimplePeerCall() {
           full_name: msg.caller_name,
           email: msg.caller_email
         }
-      });
+      };
+      setIncomingCall(callerObj);
+      setCallerDetails(callerObj);
       setCallState('ringing');
     });
   }, [ws]);
 
+// Helper to acquire a real audio stream, or gracefully fallback to a silent audio stream
+// to prevent WebRTC crashes when microphones are missing, busy, or permissions are pending
+async function getAudioStreamWithFallback() {
+  try {
+    if (navigator?.mediaDevices?.getUserMedia) {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (s && s.getAudioTracks().length > 0) {
+        return s;
+      }
+    }
+  } catch (err) {
+    console.warn('[Call] getUserMedia failed or microphone access restricted, using silent audio stream fallback:', err);
+  }
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const dst = ctx.createMediaStreamDestination();
+      osc.connect(dst);
+      osc.start();
+      const track = dst.stream.getAudioTracks()[0];
+      if (track) track.enabled = false;
+      return dst.stream;
+    }
+  } catch (fallbackErr) {
+    console.warn('[Call] AudioContext fallback failed:', fallbackErr);
+  }
+  return null;
+}
+
   // Handle call accepted
   useEffect(() => {
     return ws.onMessage('call_accepted', async (msg) => {
-      console.log('[Call] Call accepted, creating peer as INITIATOR (CALLER)');
+      console.log('[Call] Call accepted by peer, creating peer as INITIATOR (CALLER):', msg);
       
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (typeof window !== 'undefined') {
+          if (!window.process) window.process = { env: {} };
+          if (!window.process.nextTick) {
+            window.process.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
+          }
+        }
+
+        const stream = await getAudioStreamWithFallback();
         localStreamRef.current = stream;
         
         const peer = new SimplePeer({
           initiator: true,
-          stream: stream,
+          stream: stream || undefined,
           trickle: true,
           config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
         });
         
         peer.on('signal', (data) => {
-          console.log('[WebRTC] Sending signal to callee:', data.type);
+          console.log('[WebRTC] Caller sending signal to callee:', data.type || 'candidate');
           
           // Detect signal type and send appropriate message
           if (data.type === 'offer') {
@@ -98,48 +154,61 @@ export function useSimplePeerCall() {
         peer.on('connect', () => {
           console.log('[WebRTC] Initiator peer connected');
           isPeerConnected = true;
+          setCallState('connected');
         });
 
         peer.on('stream', (stream) => {
-          console.log('[WebRTC] Got remote stream!');
+          console.log('[WebRTC] Caller got remote stream!');
           isPeerConnected = true;
           setRemoteStream(stream);
-          const audio = new Audio();
-          audio.srcObject = stream;
-          audio.play();
+          try {
+            const audio = new Audio();
+            audio.srcObject = stream;
+            audio.play().catch(e => {
+              console.warn('[WebRTC] Caller stream autoplay prevented:', e);
+            });
+          } catch (e) {
+            console.warn('[WebRTC] Caller audio play error:', e);
+          }
           setCallState('connected');
           startCallTimer();
         });
         
         peer.on('error', (err) => {
-          console.error('[WebRTC] Peer error:', err);
+          console.error('[WebRTC] Caller peer error:', err);
           if (isPeerConnected) {
-            endCallRef.current?.(true);
+            endCallRef.current?.(false, currentCallIdRef.current);
           }
         });
 
         peer.on('close', () => {
-          console.log('[WebRTC] Peer connection closed');
+          console.log('[WebRTC] Caller peer connection closed');
           if (isPeerConnected) {
-            endCallRef.current?.(true);
+            endCallRef.current?.(false, currentCallIdRef.current);
           }
         });
         
         peerRef.current = peer;
+        drainPendingSignals(peer);
       } catch (error) {
-        console.error('[Call] Failed to get microphone:', error);
-        alert('Microphone access denied');
-        endCallRef.current?.();
+        console.error('[Call] Failed to initialize initiator peer:', error);
       }
     });
-  }, [ws]);
+  }, [ws, drainPendingSignals]);
 
   // Handle SDP offer
   useEffect(() => {
     return ws.onMessage('sdp_offer', (msg) => {
       console.log('[WebRTC] Received SDP offer from peer');
       if (peerRef.current) {
-        peerRef.current.signal({ type: 'offer', sdp: msg.sdp });
+        try {
+          peerRef.current.signal({ type: 'offer', sdp: msg.sdp });
+        } catch (e) {
+          console.warn('[WebRTC] Error signaling offer:', e);
+        }
+      } else {
+        console.log('[WebRTC] Peer not ready, queueing sdp_offer');
+        pendingSignalsRef.current.push({ type: 'offer', sdp: msg.sdp });
       }
     });
   }, [ws]);
@@ -149,7 +218,14 @@ export function useSimplePeerCall() {
     return ws.onMessage('sdp_answer', (msg) => {
       console.log('[WebRTC] Received SDP answer from peer');
       if (peerRef.current) {
-        peerRef.current.signal({ type: 'answer', sdp: msg.sdp });
+        try {
+          peerRef.current.signal({ type: 'answer', sdp: msg.sdp });
+        } catch (e) {
+          console.warn('[WebRTC] Error signaling answer:', e);
+        }
+      } else {
+        console.log('[WebRTC] Peer not ready, queueing sdp_answer');
+        pendingSignalsRef.current.push({ type: 'answer', sdp: msg.sdp });
       }
     });
   }, [ws]);
@@ -158,8 +234,15 @@ export function useSimplePeerCall() {
   useEffect(() => {
     return ws.onMessage('ice_candidate', (msg) => {
       console.log('[WebRTC] Received ICE candidate from peer');
-      if (peerRef.current) {
-        peerRef.current.signal(msg.candidate);
+      if (peerRef.current && msg.candidate) {
+        try {
+          peerRef.current.signal(msg.candidate);
+        } catch (e) {
+          console.warn('[WebRTC] Error signaling ICE candidate:', e);
+        }
+      } else if (msg.candidate) {
+        console.log('[WebRTC] Peer not ready, queueing ice_candidate');
+        pendingSignalsRef.current.push(msg.candidate);
       }
     });
   }, [ws]);
@@ -213,6 +296,11 @@ export function useSimplePeerCall() {
     console.log(`[Call] Initiating call to ${contactName} (ID: ${calleeIdRef.current}) with call_id: ${call_id}`);
     setCallState('calling');
     setIsReceiver(false); // CALLER role
+    setCallerDetails({
+      caller_name: contactName,
+      full_name: contactName,
+      id: calleeIdRef.current
+    });
     
     ws.sendMessage({
       type: 'call_initiate',
@@ -226,13 +314,28 @@ export function useSimplePeerCall() {
   }, [ws, navigate]);
 
 
+  const rejectCall = useCallback(() => {
+    const callId = incomingCall?.call_id || currentCallIdRef.current;
+    console.log('[Call] Rejecting call:', callId);
+    
+    if (callId) {
+      ws.sendMessage({ 
+        type: 'call_reject', 
+        call_id: callId 
+      });
+    }
+    
+    setIncomingCall(null);
+    setCallState('idle');
+  }, [ws, incomingCall]);
+
   const acceptCall = useCallback(async () => {
     if (!incomingCall) {
       console.error('[Call] No incoming call to accept');
       return;
     }
     
-    console.log('[Call] Accepting call as RECEIVER (CALLEE)');
+    console.log('[Call] Accepting call as RECEIVER (CALLEE):', incomingCall);
     setCallState('connecting');
     setIsReceiver(true); // RECEIVER role
     
@@ -247,18 +350,25 @@ export function useSimplePeerCall() {
     setIncomingCall(null);
     navigate(`/call/${callId}`);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (typeof window !== 'undefined') {
+        if (!window.process) window.process = { env: {} };
+        if (!window.process.nextTick) {
+          window.process.nextTick = (fn, ...args) => queueMicrotask(() => fn(...args));
+        }
+      }
+
+      const stream = await getAudioStreamWithFallback();
       localStreamRef.current = stream;
       
       const peer = new SimplePeer({
         initiator: false,
-        stream: stream,
+        stream: stream || undefined,
         trickle: true,
         config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
       });
       
       peer.on('signal', (data) => {
-        console.log('[WebRTC] Sending signal to caller:', data.type);
+        console.log('[WebRTC] Callee sending signal to caller:', data.type || 'candidate');
         
         // Detect signal type and send appropriate message
         if (data.type === 'offer') {
@@ -290,62 +400,58 @@ export function useSimplePeerCall() {
       peer.on('connect', () => {
         console.log('[WebRTC] Receiver peer connected');
         isPeerConnected = true;
+        setCallState('connected');
       });
 
       peer.on('stream', (stream) => {
-        console.log('[WebRTC] Got remote stream!');
+        console.log('[WebRTC] Callee got remote stream!');
         isPeerConnected = true;
         setRemoteStream(stream);
-        const audio = new Audio();
-        audio.srcObject = stream;
-        audio.play();
+        try {
+          const audio = new Audio();
+          audio.srcObject = stream;
+          audio.play().catch(e => {
+            console.warn('[WebRTC] Callee stream autoplay prevented:', e);
+          });
+        } catch (e) {
+          console.warn('[WebRTC] Callee stream audio error:', e);
+        }
         setCallState('connected');
         startCallTimer();
       });
       
       peer.on('error', (err) => {
-        console.error('[WebRTC] Peer error:', err);
+        console.error('[WebRTC] Callee peer error:', err);
         if (isPeerConnected) {
-          endCallRef.current?.(true);
+          endCallRef.current?.(false, callId);
         }
       });
 
       peer.on('close', () => {
-        console.log('[WebRTC] Peer connection closed');
+        console.log('[WebRTC] Callee peer connection closed');
         if (isPeerConnected) {
-          endCallRef.current?.(true);
+          endCallRef.current?.(false, callId);
         }
       });
       
       peerRef.current = peer;
+      drainPendingSignals(peer);
       
-      // Send acceptance message
+      // Send acceptance message upstream
+      console.log('[Call] Sending call_accept to backend for call_id:', callId);
       ws.sendMessage({ 
         type: 'call_accept', 
         call_id: callId 
       });
     } catch (error) {
-      console.error('[Call] Failed to get microphone:', error);
-      alert('Microphone access denied');
-      rejectCall();
-    }
- }, [ws, incomingCall, navigate]);
-
-
-  const rejectCall = useCallback(() => {
-    const callId = incomingCall?.call_id || currentCallIdRef.current;
-    console.log('[Call] Rejecting call:', callId);
-    
-    if (callId) {
+      console.error('[Call] Failed to initialize callee peer:', error);
+      // Ensure call_accept is still dispatched to caller so connection attempt can proceed
       ws.sendMessage({ 
-        type: 'call_reject', 
+        type: 'call_accept', 
         call_id: callId 
       });
     }
-    
-    setIncomingCall(null);
-    setCallState('idle');
-  }, [ws, incomingCall]);
+  }, [ws, incomingCall, navigate, drainPendingSignals]);
 
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {
@@ -400,6 +506,7 @@ export function useSimplePeerCall() {
     
     setCallState('idle');
     setIncomingCall(null);
+    setCallerDetails(null);
     setCallDuration(0);
     setIsMuted(false);
     setRemoteStream(null);
@@ -457,15 +564,17 @@ export function useSimplePeerCall() {
       }
     };
     setIncomingCall(simCaller);
+    setCallerDetails(simCaller);
     setCallState('ringing');
   }, []);
 
   return {
     callState,
     incomingCall,
+    callerDetails,
     isMuted,
     remoteStream,
-    isReceiver, // NEW: Export isReceiver flag
+    isReceiver, // Export isReceiver flag
     isConnected: ws.isConnected,
     initiateCall,
     acceptCall,

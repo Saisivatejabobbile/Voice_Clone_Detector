@@ -138,15 +138,20 @@ async def _handle_call_initiate_routing(
 ) -> None:
     """Handle call initiation routing with validation."""
     call_id = message.get("call_id")
-    callee_id = message.get("callee_id")
+    raw_callee_id = message.get("callee_id")
     
-    if not call_id or not callee_id:
+    if not call_id or not raw_callee_id:
         logger.error(f"Missing call_id or callee_id in call_initiate from user {caller_id}")
         await connection_manager.send_personal_message({
             "type": "error",
             "message": "Missing required fields: call_id, callee_id"
         }, caller_id)
         return
+    
+    try:
+        callee_id = int(raw_callee_id)
+    except (ValueError, TypeError):
+        callee_id = raw_callee_id
     
     # Validate target user is online
     if not connection_manager.is_user_connected(callee_id):
@@ -160,8 +165,8 @@ async def _handle_call_initiate_routing(
         return
     
     # Get user info from database
-    caller = db.query(User).filter(User.id == caller_id).first()
-    callee = db.query(User).filter(User.id == callee_id).first()
+    caller = db.query(User).filter(User.id == int(caller_id)).first()
+    callee = db.query(User).filter(User.id == int(callee_id)).first()
     
     if not caller or not callee:
         logger.error(f"User not found: caller={caller_id}, callee={callee_id}")
@@ -174,8 +179,8 @@ async def _handle_call_initiate_routing(
     # Create call session
     call_session = session_manager.create_session(
         call_id=call_id,
-        caller_id=caller_id,
-        callee_id=callee_id,
+        caller_id=caller.id,
+        callee_id=callee.id,
         caller_name=caller.full_name,
         callee_name=callee.full_name
     )
@@ -187,10 +192,10 @@ async def _handle_call_initiate_routing(
     await connection_manager.send_personal_message({
         "type": "incoming_call",
         "call_id": call_id,
-        "from": caller_id,
+        "from": caller.id,
         "caller_name": caller.full_name,
         "caller_email": caller.email
-    }, callee_id)
+    }, callee.id)
 
 
 async def _handle_call_accept_routing(
@@ -218,9 +223,13 @@ async def _handle_call_accept_routing(
     # Update call session status
     session_manager.update_session_status(call_id, CallState.ACCEPTED.value)
     
+    caller_id = int(call_session.caller_id)
+    callee_id = int(callee_id)
+    logger.info(f"Processing call_accept for call {call_id}: caller_id={caller_id}, callee_id={callee_id}. Active connections: {list(connection_manager.active_connections.keys())}")
+
     # Validate caller is still online
-    if not connection_manager.is_user_connected(call_session.caller_id):
-        logger.warning(f"Caller {call_session.caller_id} is no longer online")
+    if not connection_manager.is_user_connected(caller_id):
+        logger.warning(f"Caller {caller_id} is no longer online. Active connections: {list(connection_manager.active_connections.keys())}")
         await connection_manager.send_personal_message({
             "type": "call_failed",
             "call_id": call_id,
@@ -229,14 +238,14 @@ async def _handle_call_accept_routing(
         session_manager.end_session(call_id)
         return
     
-    logger.info(f"Call {call_id} accepted by user {callee_id}")
+    logger.info(f"Call {call_id} accepted by user {callee_id}, forwarding to caller {caller_id}")
     
     # Forward acceptance to caller
     await connection_manager.send_personal_message({
         "type": "call_accepted",
         "call_id": call_id,
         "by": callee_id
-    }, call_session.caller_id)
+    }, caller_id)
 
 
 async def _handle_call_reject_routing(
@@ -260,15 +269,18 @@ async def _handle_call_reject_routing(
     # Update call session status
     session_manager.update_session_status(call_id, CallState.REJECTED.value)
     
+    caller_id = int(call_session.caller_id)
+    callee_id = int(callee_id)
+
     logger.info(f"Call {call_id} rejected by user {callee_id}")
     
     # Forward rejection to caller (if still online)
-    if connection_manager.is_user_connected(call_session.caller_id):
+    if connection_manager.is_user_connected(caller_id):
         await connection_manager.send_personal_message({
             "type": "call_rejected",
             "call_id": call_id,
             "by": callee_id
-        }, call_session.caller_id)
+        }, caller_id)
     
     # End the session
     session_manager.end_session(call_id)
@@ -283,10 +295,10 @@ async def _handle_sdp_routing(
 ) -> None:
     """Handle SDP offer/answer routing."""
     call_id = message.get("call_id")
-    target_user_id = message.get("to")
+    raw_target_user_id = message.get("to")
     sdp = message.get("sdp")
     
-    if not call_id or not target_user_id or not sdp:
+    if not call_id or not raw_target_user_id or not sdp:
         logger.error(f"Missing required fields in {message_type} from user {user_id}")
         await connection_manager.send_personal_message({
             "type": "error",
@@ -294,6 +306,11 @@ async def _handle_sdp_routing(
         }, user_id)
         return
     
+    try:
+        target_user_id = int(raw_target_user_id)
+    except (ValueError, TypeError):
+        target_user_id = raw_target_user_id
+
     call_session = session_manager.get_session(call_id)
     if not call_session:
         logger.warning(f"Call session {call_id} not found for {message_type}")
@@ -323,7 +340,7 @@ async def _handle_sdp_routing(
     await connection_manager.send_personal_message({
         "type": message_type,
         "call_id": call_id,
-        "from": user_id,
+        "from": int(user_id),
         "sdp": sdp
     }, target_user_id)
 
@@ -336,13 +353,18 @@ async def _handle_ice_candidate_routing(
 ) -> None:
     """Handle ICE candidate routing."""
     call_id = message.get("call_id")
-    target_user_id = message.get("to")
+    raw_target_user_id = message.get("to")
     candidate = message.get("candidate")
     
-    if not call_id or not target_user_id:
+    if not call_id or not raw_target_user_id:
         logger.error(f"Missing required fields in ice_candidate from user {user_id}")
         return
     
+    try:
+        target_user_id = int(raw_target_user_id)
+    except (ValueError, TypeError):
+        target_user_id = raw_target_user_id
+
     call_session = session_manager.get_session(call_id)
     if not call_session:
         logger.debug(f"Call session {call_id} not found for ICE candidate (may have ended)")
@@ -359,7 +381,7 @@ async def _handle_ice_candidate_routing(
     await connection_manager.send_personal_message({
         "type": "ice_candidate",
         "call_id": call_id,
-        "from": user_id,
+        "from": int(user_id),
         "candidate": candidate
     }, target_user_id)
 
@@ -387,10 +409,11 @@ async def _handle_hangup_routing(
     session_manager.update_session_status(call_id, CallState.ENDED.value)
     
     # Determine the other peer
-    other_user_id = (
-        call_session.callee_id if call_session.caller_id == user_id
-        else call_session.caller_id
-    )
+    caller_id = int(call_session.caller_id)
+    callee_id = int(call_session.callee_id)
+    current_uid = int(user_id)
+    
+    other_user_id = callee_id if caller_id == current_uid else caller_id
     
     logger.info(f"Call {call_id} ended by user {user_id}")
     
@@ -399,7 +422,7 @@ async def _handle_hangup_routing(
         await connection_manager.send_personal_message({
             "type": "hangup",
             "call_id": call_id,
-            "by": user_id
+            "by": current_uid
         }, other_user_id)
     
     # Execute Mandatory 8-Step Call Termination Lifecycle in detector middleware

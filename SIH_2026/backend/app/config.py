@@ -24,10 +24,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./voiceshield.db"
     
-    # JWT Authentication
-    SECRET_KEY: str = "your-secret-key-change-this-in-production-please-use-min-32-characters"
+    # JWT Settings
+    SECRET_KEY: str = "voiceshield-secret-key-change-in-production-super-secret-key"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days (prevents mid-session websocket expiry)
     
     # CORS - Allow common development ports
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175"
