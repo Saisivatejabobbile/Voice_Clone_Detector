@@ -23,7 +23,7 @@ export default function Sidebar() {
       )
     },
     { 
-      path: ROUTES.AUDIO_TEST, 
+      path: ROUTES.AUDIO_TEST || '/test-audio', 
       label: 'Voice Spoof Lab', 
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -10,6 +10,8 @@ export const ROUTES = {
   CALL_HISTORY: '/history',
   SETTINGS: '/settings',
   ABOUT: '/about',
+  CALL: '/call/:callId',
+  AUDIO_TEST: '/test-audio',
 };
 
 // LocalStorage keys

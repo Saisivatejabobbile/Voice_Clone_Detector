@@ -190,7 +190,7 @@ export default function Dashboard() {
               </button>
 
               <button 
-                onClick={() => navigate(ROUTES.AUDIO_TEST)}
+                onClick={() => navigate(ROUTES.AUDIO_TEST || '/test-audio')}
                 className="w-full p-3.5 bg-cyan-50/50 dark:bg-[#00C2FF]/10 hover:bg-cyan-100/60 dark:hover:bg-[#00C2FF]/20 border border-cyan-200 dark:border-[#00C2FF]/30 rounded-xl text-left transition-all group flex items-center justify-between"
               >
                 <div className="flex items-center gap-3">
