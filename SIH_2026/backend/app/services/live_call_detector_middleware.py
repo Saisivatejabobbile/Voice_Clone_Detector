@@ -342,13 +342,15 @@ class LiveCallSessionDetector:
             from app.websockets.analysis import active_analysis_sessions
             if self.call_id in active_analysis_sessions:
                 for ws_info in active_analysis_sessions[self.call_id].get("websockets", []):
-                    try:
-                        await ws_info["websocket"].send_json(final_payload)
-                        risk_dup = dict(final_payload)
-                        risk_dup["type"] = "risk_update"
-                        await ws_info["websocket"].send_json(risk_dup)
-                    except Exception:
-                        pass
+                    # Only send final risk verdict to receiver
+                    if ws_info.get("role") != "caller":
+                        try:
+                            await ws_info["websocket"].send_json(final_payload)
+                            risk_dup = dict(final_payload)
+                            risk_dup["type"] = "risk_update"
+                            await ws_info["websocket"].send_json(risk_dup)
+                        except Exception:
+                            pass
         except Exception:
             pass
 

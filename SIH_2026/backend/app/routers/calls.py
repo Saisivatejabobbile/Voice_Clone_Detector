@@ -105,18 +105,15 @@ async def get_call_history(
     # Enrich with contact information
     enriched_calls = []
     for call in calls:
-        # Determine the "other" person (not current user)
-        if call.caller_id == current_user.id:
-            # Current user is caller, get callee info
-            other_user_id = call.callee_id
-        else:
-            # Current user is callee, get caller info
-            other_user_id = call.caller_id
+        # Determine caller vs receiver role
+        is_caller = (call.caller_id == current_user.id)
+        other_user_id = call.callee_id if is_caller else call.caller_id
+        direction = "outgoing" if is_caller else "incoming"
         
         # Get other user's details
         other_user = db.query(User).filter(User.id == other_user_id).first()
         
-        # FIX: Ensure timestamps are timezone-aware UTC before JSON serialization
+        # Risk & spam verification is strictly for the receiver/callee side
         call_dict = {
             "id": call.id,
             "caller_id": call.caller_id,
@@ -125,12 +122,13 @@ async def get_call_history(
             "ended_at": ensure_utc_timestamp(call.ended_at),
             "duration_seconds": call.duration_seconds,
             "status": call.status,
-            "risk_level": call.risk_level,
-            "risk_score": call.risk_score,
+            "risk_level": call.risk_level if not is_caller else None,
+            "risk_score": call.risk_score if not is_caller else None,
             "created_at": ensure_utc_timestamp(call.created_at),
             "contact_name": other_user.full_name if other_user else "Unknown",
             "contact_email": other_user.email if other_user else "unknown@example.com",
             "contact_id": other_user_id,
+            "direction": direction,
         }
         enriched_calls.append(call_dict)
     
@@ -145,8 +143,7 @@ async def get_call_by_id(
 ):
     """
     Get specific call details by call_id
-    
-    Returns complete call history record including risk analysis
+    Returns complete call history record with risk analysis only on receiver side
     """
     call = db.query(CallHistory).filter(CallHistory.id == call_id).first()
     
@@ -163,7 +160,26 @@ async def get_call_by_id(
             detail="Access denied to this call record"
         )
     
-    return call
+    is_caller = (call.caller_id == current_user.id)
+    other_user_id = call.callee_id if is_caller else call.caller_id
+    other_user = db.query(User).filter(User.id == other_user_id).first()
+    
+    return {
+        "id": call.id,
+        "caller_id": call.caller_id,
+        "callee_id": call.callee_id,
+        "started_at": ensure_utc_timestamp(call.started_at),
+        "ended_at": ensure_utc_timestamp(call.ended_at),
+        "duration_seconds": call.duration_seconds,
+        "status": call.status,
+        "risk_level": call.risk_level if not is_caller else None,
+        "risk_score": call.risk_score if not is_caller else None,
+        "created_at": ensure_utc_timestamp(call.created_at),
+        "contact_name": other_user.full_name if other_user else "Unknown",
+        "contact_email": other_user.email if other_user else "unknown@example.com",
+        "contact_id": other_user_id,
+        "direction": "outgoing" if is_caller else "incoming"
+    }
 
 
 @router.get("/stats/summary")
@@ -173,13 +189,7 @@ async def get_call_stats(
 ):
     """
     Get call statistics summary for current user
-    
-    Returns:
-    - Total calls
-    - Calls by risk level (LOW, MEDIUM, HIGH)
-    - Average call duration
     """
-    # Get all calls for user
     calls = db.query(CallHistory).filter(
         (CallHistory.caller_id == current_user.id) | 
         (CallHistory.callee_id == current_user.id)
@@ -187,10 +197,11 @@ async def get_call_stats(
     
     total_calls = len(calls)
     
-    # Count by risk level
-    low_risk = sum(1 for call in calls if call.risk_level == "LOW")
-    medium_risk = sum(1 for call in calls if call.risk_level == "MEDIUM")
-    high_risk = sum(1 for call in calls if call.risk_level == "HIGH")
+    # Count risk metrics ONLY for incoming calls received by user
+    incoming_calls = [c for c in calls if c.callee_id == current_user.id]
+    low_risk = sum(1 for call in incoming_calls if call.risk_level == "LOW")
+    medium_risk = sum(1 for call in incoming_calls if call.risk_level == "MEDIUM")
+    high_risk = sum(1 for call in incoming_calls if call.risk_level == "HIGH")
     
     # Calculate average duration
     durations = [call.duration_seconds for call in calls if call.duration_seconds]

@@ -138,8 +138,8 @@ export default function CallHistoryPage() {
                 </div>
               </div>
 
-              {/* Risk Analysis Card */}
-              {selectedCall.risk_level && (
+              {/* Risk Analysis Card - Strictly on receiver side (incoming calls) */}
+              {selectedCall.direction !== 'outgoing' && selectedCall.risk_level && (
                 <div>
                   <h4 className="text-xs font-bold text-[#0B1F3A] dark:text-white uppercase tracking-wider mb-2.5">
                     Impersonation & Voice Integrity Analysis
@@ -153,6 +153,15 @@ export default function CallHistoryPage() {
                       recommendation: selectedCall.recommendation,
                     }}
                   />
+                </div>
+              )}
+
+              {/* Outgoing Call Note for Caller */}
+              {selectedCall.direction === 'outgoing' && (
+                <div className="p-4 bg-slate-50 dark:bg-[#12233C] border border-slate-200 dark:border-[#1E3A5F] rounded-xl text-center">
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
+                    Outgoing Call Session • AI voice clone inspection is performed exclusively on the receiver's terminal.
+                  </p>
                 </div>
               )}
 

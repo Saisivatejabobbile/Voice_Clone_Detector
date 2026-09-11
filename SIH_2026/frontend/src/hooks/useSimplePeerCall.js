@@ -303,6 +303,9 @@ async function getAudioStreamWithFallback() {
     console.log(`[Call] Initiating call to ${contactName} (ID: ${calleeIdRef.current}) with call_id: ${call_id}`);
     setCallState('calling');
     setIsReceiver(false); // CALLER role
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(`call_role_${call_id}`, 'caller');
+    }
     setCallerDetails({
       caller_name: contactName,
       full_name: contactName,
@@ -345,6 +348,9 @@ async function getAudioStreamWithFallback() {
     console.log('[Call] Accepting call as RECEIVER (CALLEE):', incomingCall);
     setCallState('connecting');
     setIsReceiver(true); // RECEIVER role
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(`call_role_${callId}`, 'receiver');
+    }
     
     const callId = incomingCall.call_id;
     const callerId = incomingCall.from;
@@ -518,6 +524,9 @@ async function getAudioStreamWithFallback() {
     setIsMuted(false);
     setRemoteStream(null);
     setIsReceiver(false);
+    if (typeof sessionStorage !== 'undefined' && callId) {
+      sessionStorage.removeItem(`call_role_${callId}`);
+    }
     currentCallIdRef.current = null;
     calleeIdRef.current = null;
     callStartTimeRef.current = null;

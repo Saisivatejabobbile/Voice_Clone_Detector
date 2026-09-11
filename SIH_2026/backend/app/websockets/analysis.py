@@ -65,6 +65,7 @@ async def websocket_analysis(
     websocket: WebSocket,
     token: str = Query(...),
     call_id: str = Query(...),
+    role: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -121,11 +122,23 @@ async def websocket_analysis(
             "started_at": datetime.utcnow()
         }
     
-    # Add this WebSocket to the session
+    # Determine role: caller vs receiver
+    user_role = role
+    if not user_role:
+        from app.services.call_session_manager import session_manager
+        sess = session_manager.get_session(call_id)
+        if sess and str(user.id) == str(sess.caller_id):
+            user_role = "caller"
+        else:
+            user_role = "receiver"
+
+    # Add this WebSocket to the session with role
     active_analysis_sessions[call_id]["websockets"].append({
         "user_id": user.id,
-        "websocket": websocket
+        "websocket": websocket,
+        "role": user_role
     })
+    logger.info(f"User {user.id} registered as role={user_role} for analysis on call {call_id}")
     
     # Get AI client and risk engine instances
     ai_client = get_ai_client(use_mock=True)  # Use mock for development
@@ -305,10 +318,12 @@ async def handle_audio_chunk(
             if call_id in active_analysis_sessions:
                 session = active_analysis_sessions[call_id]
                 for ws_info in session.get("websockets", []):
-                    try:
-                        await ws_info["websocket"].send_json(payload)
-                    except Exception as ws_err:
-                        logger.warning(f"Failed to send blockchain telemetry to user {ws_info['user_id']}: {ws_err}")
+                    # Only send spam/risk intelligence telemetries to the RECEIVER
+                    if ws_info.get("role") != "caller":
+                        try:
+                            await ws_info["websocket"].send_json(payload)
+                        except Exception as ws_err:
+                            logger.warning(f"Failed to send blockchain telemetry to receiver {ws_info['user_id']}: {ws_err}")
 
         await detector_middleware.process_chunk(
             call_id=call_id,

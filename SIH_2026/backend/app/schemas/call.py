@@ -49,6 +49,7 @@ class CallHistoryResponse(BaseModel):
     contact_name: Optional[str] = None
     contact_email: Optional[str] = None
     contact_id: Optional[int] = None
+    direction: Optional[str] = None  # 'incoming' or 'outgoing'
     
     class Config:
         from_attributes = True

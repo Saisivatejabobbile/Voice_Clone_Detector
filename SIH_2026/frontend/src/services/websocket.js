@@ -228,9 +228,9 @@ class AnalysisWebSocket extends WebSocketManager {
     super('/ws/analysis');  
   }
 
-  connectWithCallId(token, callId) {
-  // Build the full URL with both token and call_id
-  const url = `${WS_URL}/ws/analysis?token=${token}&call_id=${callId}`;
+  connectWithCallId(token, callId, role = 'receiver') {
+    // Build the full URL with token, call_id, and role
+    const url = `${WS_URL}/ws/analysis?token=${token}&call_id=${callId}&role=${role}`;
 
   // Connect directly without using base connect()
   return new Promise((resolve, reject) => {

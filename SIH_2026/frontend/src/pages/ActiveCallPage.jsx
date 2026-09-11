@@ -29,10 +29,13 @@ export default function ActiveCallPage() {
     formatDuration: getCallDuration
   } = useSharedSimplePeerCall();
 
+  // Robust determination: verify both state and persistent session storage
+  const isCallReceiver = isReceiver || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(`call_role_${callId}`) === 'receiver');
+
   // Initialize analysis WebSocket connection - ONLY for receiver
   useEffect(() => {
-    if (!isReceiver) {
-      console.log('[Analysis] Skipping analysis - user is CALLER (not receiver)');
+    if (!isCallReceiver) {
+      console.log('[Analysis] User is CALLER - voice clone and spam analysis disabled on caller terminal');
       return;
     }
 
@@ -40,16 +43,16 @@ export default function ActiveCallPage() {
     const token = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
     
     if (token && callId) {
-      console.log('[Analysis] Connecting as RECEIVER - will analyze CALLER audio');
-      analysisWS.connectWithCallId(token, callId).catch(err => {
+      console.log('[Analysis] Connecting as RECEIVER - will analyze incoming caller audio');
+      analysisWS.connectWithCallId(token, callId, 'receiver').catch(err => {
         console.error('Failed to connect to analysis WebSocket:', err);
       });
     }
-  }, [callId, isReceiver]);
+  }, [callId, isCallReceiver]);
 
   // Create callback to send audio chunks to analysis WebSocket
   const sendAudioChunk = useCallback((callId, pcmData, sampleRate) => {
-    if (!isReceiver) {
+    if (!isCallReceiver) {
       return;
     }
 
@@ -57,10 +60,10 @@ export default function ActiveCallPage() {
     if (analysisWS.isConnected) {
       analysisWS.sendAudioChunk(callId, pcmData, sampleRate);
     }
-  }, [isReceiver]);
+  }, [isCallReceiver]);
 
-  // Initialize AudioWorklet with remote stream
-  const shouldProcessAudio = callState === 'connected' && remoteStream && callId && isReceiver;
+  // Initialize AudioWorklet with remote stream - ONLY for receiver
+  const shouldProcessAudio = callState === 'connected' && remoteStream && callId && isCallReceiver;
   
   useAudioProcessor(
     shouldProcessAudio ? remoteStream : null,
@@ -149,8 +152,8 @@ export default function ActiveCallPage() {
                 {connectionStatus.label}
               </Badge>
 
-              <Badge variant={isReceiver ? "ai" : "primary"} size="sm">
-                {isReceiver ? '🛡 Receiver (Live Inspection Active)' : '🎙 Caller'}
+              <Badge variant={isCallReceiver ? "ai" : "primary"} size="sm">
+                {isCallReceiver ? '🛡 Receiver (Live Inspection Active)' : '🎙 Caller (Outgoing)'}
               </Badge>
             </div>
 
@@ -162,11 +165,11 @@ export default function ActiveCallPage() {
             </button>
           </div>
 
-          {/* Two-Column Grid: Call Room (Left) + Risk Intelligence Dashboard (Right) */}
-          <div className={`grid grid-cols-1 ${isReceiver ? 'lg:grid-cols-12' : 'max-w-2xl mx-auto'} gap-6 items-start`}>
+          {/* Two-Column Grid: Call Room (Left) + Risk Intelligence Dashboard (Right - Receiver Only) */}
+          <div className={`grid grid-cols-1 ${isCallReceiver ? 'lg:grid-cols-12' : 'max-w-2xl mx-auto'} gap-6 items-start`}>
             
             {/* Left Column: Call Console */}
-            <div className={`${isReceiver ? 'lg:col-span-5' : 'w-full'} flex flex-col`}>
+            <div className={`${isCallReceiver ? 'lg:col-span-5' : 'w-full'} flex flex-col`}>
               <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl p-8 shadow-sm transition-colors">
                 {/* Caller Info */}
                 <div className="flex flex-col items-center mb-6">
@@ -201,7 +204,11 @@ export default function ActiveCallPage() {
                     color="cyan"
                   />
                   <p className="text-center text-xs text-[#64748B] dark:text-[#94A3B8] mt-2 font-medium">
-                    {isMuted ? 'Local microphone is muted' : 'Live stream is actively sampled for synthetic speech'}
+                    {isMuted 
+                      ? 'Local microphone is muted' 
+                      : (isCallReceiver 
+                          ? 'Incoming audio stream is analyzed for AI clones & spam' 
+                          : 'Encrypted voice connection active')}
                   </p>
                 </div>
 
@@ -226,8 +233,8 @@ export default function ActiveCallPage() {
               </div>
             </div>
 
-            {/* Right Column: Real-Time Risk Dashboard (Receiver only) */}
-            {isReceiver && (
+            {/* Right Column: Real-Time Risk Dashboard (Receiver only - never shown on caller side) */}
+            {isCallReceiver && (
               <div className="lg:col-span-7 flex flex-col">
                 <RiskDashboard
                   callId={callId}

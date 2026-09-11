@@ -14,8 +14,12 @@ export default function GlobalActiveCallOverlay() {
     isMuted,
     toggleMute,
     endCall,
-    formatDuration
+    formatDuration,
+    isReceiver,
+    callId
   } = useSharedSimplePeerCall();
+
+  const isCallReceiver = isReceiver || (typeof sessionStorage !== 'undefined' && callId && sessionStorage.getItem(`call_role_${callId}`) === 'receiver');
 
   // Don't show on ActiveCallPage (which has its own full UI + RiskDashboard)
   if (location.pathname.startsWith('/call/')) {
@@ -39,7 +43,7 @@ export default function GlobalActiveCallOverlay() {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] animate-pulse" />
             <span className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-[#38BDF8]">
-              Active Encrypted Call
+              {isCallReceiver ? 'Active Call • Voice Inspection' : 'Encrypted Outgoing Call'}
             </span>
           </div>
           <div className="font-mono text-xl font-bold text-[#0B1F3A] dark:text-white bg-slate-100 dark:bg-[#12233C] border border-transparent dark:border-[#1E3A5F] px-3 py-1 rounded-lg">
@@ -60,7 +64,7 @@ export default function GlobalActiveCallOverlay() {
           </h2>
           
           <p className="text-xs font-mono text-[#64748B] dark:text-[#94A3B8] mt-0.5">
-            Real-Time Voice Integrity Active
+            {isCallReceiver ? 'Real-Time Voice Integrity Active' : 'Secure P2P Channel'}
           </p>
         </div>
 
@@ -72,7 +76,11 @@ export default function GlobalActiveCallOverlay() {
             color="cyan"
           />
           <p className="text-center text-xs text-[#64748B] dark:text-[#94A3B8] mt-2 font-medium">
-            {isMuted ? 'Microphone muted locally' : 'Audio analyzed transients in real-time'}
+            {isMuted 
+              ? 'Microphone muted locally' 
+              : (isCallReceiver 
+                  ? 'Incoming audio analyzed in real-time' 
+                  : 'Encrypted voice connection active')}
           </p>
         </div>
 

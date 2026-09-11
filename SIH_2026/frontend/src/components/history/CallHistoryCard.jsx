@@ -48,12 +48,20 @@ export default function CallHistoryCard({ call, onClick }) {
               </p>
             </div>
 
-            {/* Risk Level Badge */}
-            {call.risk_level && (
-              <div className="ml-2 flex-shrink-0">
+            {/* Direction Tag & Risk Level Badge (Receiver/Incoming Only) */}
+            <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                call.direction === 'outgoing' 
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+              }`}>
+                {call.direction === 'outgoing' ? '↗ Outgoing' : '↙ Incoming'}
+              </span>
+
+              {call.direction !== 'outgoing' && call.risk_level && (
                 <RiskLevelBadge riskLevel={call.risk_level} size="sm" />
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Metadata Row */}
@@ -77,13 +85,13 @@ export default function CallHistoryCard({ call, onClick }) {
             </span>
           </div>
 
-          {/* Status Badge & Risk Metric */}
+          {/* Status Badge & Risk Metric (Only for Receiver/Incoming calls) */}
           <div className="flex items-center justify-between pt-2 border-t border-[#F1F5F9] dark:border-[#1E3A5F]">
             <Badge variant={variant} size="sm">
               {label}
             </Badge>
             
-            {call.risk_score !== undefined && (
+            {call.direction !== 'outgoing' && call.risk_score !== undefined && call.risk_score !== null && (
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-[#64748B] dark:text-[#94A3B8] uppercase tracking-wider text-[10px] font-bold">Impersonation Score:</span>
                 <span className={`font-mono font-bold ${
@@ -94,6 +102,12 @@ export default function CallHistoryCard({ call, onClick }) {
                   {call.risk_score}%
                 </span>
               </div>
+            )}
+
+            {call.direction === 'outgoing' && (
+              <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-mono">
+                Caller Terminal • Verified Outgoing
+              </span>
             )}
           </div>
         </div>
