@@ -18,6 +18,7 @@ from app.services.audio_buffer import AudioBuffer
 from app.services.audio_pipeline import process_audio_chunk, cleanup_call_buffer
 from app.services.ai_model_client import get_ai_client
 from app.services.risk_engine import get_risk_engine
+from app.services.live_call_detector_middleware import detector_middleware
 # Lazy import: signaling_manager imported in handle_audio_chunk
 
 router = APIRouter()
@@ -194,6 +195,17 @@ async def websocket_analysis(
                     }
                 await websocket.send_json(summary)
             
+            elif message_type == "get_audit_trail":
+                from app.services.blockchain_audit_service import get_blockchain_audit_service
+                bc_service = get_blockchain_audit_service()
+                trail = bc_service.get_audit_trail_for_call(call_id)
+                await websocket.send_json({
+                    "type": "audit_trail",
+                    "call_id": call_id,
+                    "blocks_count": len(trail),
+                    "trail": trail
+                })
+            
             else:
                 logger.warning(f"Unknown message type: {message_type}")
     
@@ -215,6 +227,12 @@ async def websocket_analysis(
             # If no more WebSockets, cleanup and remove session
             if not active_analysis_sessions[call_id]["websockets"]:
                 logger.info(f"All users disconnected from analysis for call {call_id}")
+                
+                # Terminate detector middleware session and record final blockchain block
+                try:
+                    await detector_middleware.terminate_call(call_id)
+                except Exception as term_err:
+                    logger.warning(f"Error terminating detector middleware for call {call_id}: {term_err}")
                 
                 # Cleanup audio buffer
                 cleanup_call_buffer(call_id, audio_buffers)
@@ -274,7 +292,7 @@ async def handle_audio_chunk(
         else:
             logger.warning(f"Unexpected audio_data type: {type(audio_data)}")
             return
-        # Process audio chunk through the pipeline
+        # Process audio chunk through the existing legacy pipeline
         await process_audio_chunk(
             call_id=call_id,
             pcm_data=pcm_data,
@@ -284,6 +302,22 @@ async def handle_audio_chunk(
             risk_engine=risk_engine,
             active_analysis_sessions=active_analysis_sessions,
             receiver_user_id=user_id
+        )
+
+        # Hook into Voice Spoof Detector & Blockchain Audit Middleware
+        async def broadcast_blockchain_update(payload: dict):
+            if call_id in active_analysis_sessions:
+                session = active_analysis_sessions[call_id]
+                for ws_info in session.get("websockets", []):
+                    try:
+                        await ws_info["websocket"].send_json(payload)
+                    except Exception as ws_err:
+                        logger.warning(f"Failed to send blockchain telemetry to user {ws_info['user_id']}: {ws_err}")
+
+        await detector_middleware.process_chunk(
+            call_id=call_id,
+            pcm_samples=pcm_data,
+            broadcast_callback=broadcast_blockchain_update
         )
     
     except Exception as e:

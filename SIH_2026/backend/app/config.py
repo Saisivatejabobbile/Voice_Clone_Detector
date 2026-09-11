@@ -54,6 +54,23 @@ class Settings(BaseSettings):
     MODEL_API_KEY: str = ""
     MODEL_TIMEOUT_SECONDS: int = 10
     
+    # Remote Voice Detector ML API (ASSIST Model - NISP Dataset)
+    VOICE_DETECTOR_API_URL: str = "https://voice-detector-api-production.up.railway.app/api/analyze"
+    VOICE_DETECTOR_HEALTH_URL: str = "https://voice-detector-api-production.up.railway.app/health"
+    VOICE_DETECTOR_API_KEY: str = "default_api_key"
+    VOICE_DETECTOR_TIMEOUT_SECONDS: int = 15
+    
+    # Audio Buffering & Windowing Configuration
+    MIN_USABLE_SPEECH_SEC: float = 20.0
+    WINDOW_SIZE_SEC: float = 25.0
+    WINDOW_SLIDE_STEP_SEC: float = 5.0
+    MAX_BUFFER_SEC: float = 60.0
+    UNCERTAIN_CONFIDENCE_THRESHOLD: float = 60.0
+
+    # Blockchain Audit Engine Configuration
+    BLOCKCHAIN_DIFFICULTY: int = 2
+    BLOCKCHAIN_LEDGER_PATH: str = "./data/blockchain_ledger.json"
+    
     # Risk Analysis Thresholds
     RISK_LOW_THRESHOLD: int = 30
     RISK_HIGH_THRESHOLD: int = 70
@@ -96,7 +113,8 @@ def create_directories():
         "logs",
         "uploads",
         "models",
-        "temp"
+        "temp",
+        "data"
     ]
     
     for directory in directories:

@@ -4,14 +4,17 @@ import { SimpleLayout } from '../components/layout/Layout';
 import Logo from '../components/layout/Logo';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
+import ThemeToggle from '../components/common/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants';
 import { validators } from '../utils/validators';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 
+// Enterprise Registration Sign Up Page
 export default function SignUpPage() {
   const navigate = useNavigate();
   const { register } = useAuth();
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -30,7 +33,6 @@ export default function SignUpPage() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -40,28 +42,27 @@ export default function SignUpPage() {
     const newErrors = {};
 
     if (!validators.required(formData.fullName)) {
-      newErrors.fullName = 'Full name is required';
-    } else if (!validators.name(formData.fullName)) {
-      newErrors.fullName = 'Name must be at least 2 characters';
+      newErrors.fullName = 'Full legal name is required';
     }
 
     if (!validators.required(formData.email)) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Corporate email address is required';
     } else if (!validators.email(formData.email)) {
-      newErrors.email = 'Invalid email address';
+      newErrors.email = 'Invalid corporate email address';
     }
 
-    const passwordValidation = validators.password(formData.password);
-    if (!passwordValidation.valid) {
-      newErrors.password = passwordValidation.message;
+    if (!validators.required(formData.password)) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
-    if (!validators.passwordMatch(formData.password, formData.confirmPassword)) {
-      newErrors.confirmPassword = 'Passwords do not match';
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Password confirmation does not match';
     }
 
     if (!formData.agreeToTerms) {
-      newErrors.agreeToTerms = 'You must agree to the terms and privacy policy';
+      newErrors.agreeToTerms = 'You must agree to the institutional security guidelines';
     }
 
     setErrors(newErrors);
@@ -81,7 +82,6 @@ export default function SignUpPage() {
       const result = await register(formData.email, formData.password, formData.fullName);
       
       if (result.success) {
-        // Redirect to dashboard (user is auto-logged in after registration)
         navigate(ROUTES.DASHBOARD);
       } else {
         setErrors({ submit: result.error || 'Registration failed. Please try again.' });
@@ -95,38 +95,42 @@ export default function SignUpPage() {
 
   return (
     <SimpleLayout>
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-        {/* Logo */}
+      <div className="min-h-screen bg-[#F5F8FC] dark:bg-[#070E1A] flex flex-col items-center justify-center px-4 py-12 relative">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+          <ThemeToggle />
+        </div>
+
         <div className="mb-8">
           <Logo size="lg" />
         </div>
 
-        {/* Sign Up Form */}
         <div className="w-full max-w-md">
-          <div className="card p-8">
-            <h1 className="text-2xl font-bold text-white mb-2">
-              Create Your Account
-            </h1>
-            <p className="text-gray-400 mb-6">
-              Join VoiceShield to secure your conversations
-            </p>
+          <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl shadow-sm p-8 text-[#0F172A] dark:text-[#F1F5F9]">
+            <div className="mb-6 text-center">
+              <h1 className="text-2xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9] tracking-tight">
+                Create Operator Account
+              </h1>
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1">
+                Register authorized credentials to access voice integrity monitoring
+              </p>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
-                label="Full Name"
+                label="Full Legal Name"
                 type="text"
                 name="fullName"
-                placeholder="John Doe"
+                placeholder="Dr. Jordan Hayes"
                 value={formData.fullName}
                 onChange={handleChange}
                 error={errors.fullName}
               />
 
               <Input
-                label="Email"
+                label="Corporate Email"
                 type="email"
                 name="email"
-                placeholder="john@example.com"
+                placeholder="hayes@enterprise.corp"
                 value={formData.email}
                 onChange={handleChange}
                 error={errors.email}
@@ -137,21 +141,21 @@ export default function SignUpPage() {
                   label="Password"
                   type={showPassword ? "text" : "password"}
                   name="password"
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   value={formData.password}
                   onChange={handleChange}
                   error={errors.password}
-                  helper="At least 8 characters with uppercase, lowercase, and number"
+                  helper="Minimum 8 characters with letters, numbers, and symbols"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-3.5 top-8 text-[#94A3B8] hover:text-[#0B1F3A] dark:hover:text-[#00C2FF] transition-colors cursor-pointer"
                 >
                   {showPassword ? (
-                    <EyeOffIcon className="w-5 h-5" />
+                    <EyeOffIcon className="w-4 h-4" />
                   ) : (
-                    <EyeIcon className="w-5 h-5" />
+                    <EyeIcon className="w-4 h-4" />
                   )}
                 </button>
               </div>
@@ -161,7 +165,7 @@ export default function SignUpPage() {
                   label="Confirm Password"
                   type={showConfirmPassword ? "text" : "password"}
                   name="confirmPassword"
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   error={errors.confirmPassword}
@@ -169,71 +173,66 @@ export default function SignUpPage() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-9 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-3.5 top-8 text-[#94A3B8] hover:text-[#0B1F3A] dark:hover:text-[#00C2FF] transition-colors cursor-pointer"
                 >
                   {showConfirmPassword ? (
-                    <EyeOffIcon className="w-5 h-5" />
+                    <EyeOffIcon className="w-4 h-4" />
                   ) : (
-                    <EyeIcon className="w-5 h-5" />
+                    <EyeIcon className="w-4 h-4" />
                   )}
                 </button>
               </div>
 
-              {/* Terms Checkbox */}
-              <div className="flex items-start">
-                <input
-                  type="checkbox"
-                  id="agreeToTerms"
-                  name="agreeToTerms"
-                  checked={formData.agreeToTerms}
-                  onChange={handleChange}
-                  className="mt-1 mr-2"
-                />
-                <label htmlFor="agreeToTerms" className="text-sm text-gray-400">
-                  I agree to the{' '}
-                  <Link to="/terms" className="text-primary-400 hover:text-primary-300">
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link to="/privacy" className="text-primary-400 hover:text-primary-300">
-                    Privacy Policy
-                  </Link>
+              {/* Compliance Agreement */}
+              <div className="pt-1">
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-[#64748B] dark:text-[#94A3B8]">
+                  <input
+                    type="checkbox"
+                    name="agreeToTerms"
+                    checked={formData.agreeToTerms}
+                    onChange={handleChange}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1524] text-[#0B1F3A] dark:text-[#00C2FF] focus:ring-[#00C2FF]"
+                  />
+                  <span>
+                    I accept the{' '}
+                    <Link to="/terms" className="text-[#008BB8] dark:text-[#00C2FF] hover:underline font-semibold">
+                      Enterprise Terms of Service
+                    </Link>{' '}
+                    and zero-retention privacy protocols.
+                  </span>
                 </label>
+                {errors.agreeToTerms && (
+                  <p className="mt-1 text-xs text-[#EF4444] font-medium">{errors.agreeToTerms}</p>
+                )}
               </div>
-              {errors.agreeToTerms && (
-                <p className="text-sm text-danger">{errors.agreeToTerms}</p>
-              )}
 
               {errors.submit && (
-                <div className="p-3 bg-danger-dark/20 border border-danger rounded-lg">
-                  <p className="text-sm text-danger">{errors.submit}</p>
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 rounded-lg text-rose-800 dark:text-rose-300 text-xs font-semibold">
+                  {errors.submit}
                 </div>
               )}
 
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full"
+                className="w-full py-2.5 mt-2"
                 disabled={isLoading}
               >
-                {isLoading ? 'Creating Account...' : 'Create Account'}
+                {isLoading ? 'Registering...' : 'Complete Registration'}
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
-              <p className="text-gray-400 text-sm">
-                Already have an account?{' '}
-                <Link to={ROUTES.LOGIN} className="text-primary-400 hover:text-primary-300 font-medium">
-                  Login
-                </Link>
-              </p>
+            <div className="mt-6 pt-5 border-t border-[#F1F5F9] dark:border-[#1E3A5F] text-center text-xs text-[#64748B] dark:text-[#94A3B8]">
+              Already registered?{' '}
+              <Link to={ROUTES.LOGIN} className="text-[#008BB8] dark:text-[#00C2FF] hover:underline font-bold">
+                Operator Sign In
+              </Link>
             </div>
           </div>
 
-          {/* Back to Home */}
           <div className="mt-4 text-center">
-            <Link to={ROUTES.LANDING} className="text-gray-400 hover:text-white text-sm">
-              ← Back to Home
+            <Link to={ROUTES.LANDING} className="text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] hover:text-[#0B1F3A] dark:hover:text-[#00C2FF] transition-colors">
+              ← Return to Main Portal
             </Link>
           </div>
         </div>

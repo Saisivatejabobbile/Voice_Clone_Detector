@@ -1,60 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
+import Modal from '../components/common/Modal';
+import Button from '../components/common/Button';
+import Input from '../components/common/Input';
 import { ROUTES } from '../constants';
 import { settingsAPI, authAPI } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 import { 
   UserIcon, 
   LockIcon, 
-  PhoneIcon, 
-  BellIcon, 
-  MicIcon,
-  ShieldIcon,
-  AlertIcon,
-  ChartIcon,
-  HistoryIcon,
+  ShieldIcon, 
+  AlertIcon, 
+  ChartIcon, 
+  HistoryIcon, 
   InfoIcon,
-  SettingsIcon,
-  XIcon
+  MoonIcon
 } from '../utils/icons';
 
-// Modal Component
-function Modal({ isOpen, onClose, title, children }) {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-dark-900 border border-dark-700 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <XIcon className="w-5 h-5" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// Setting Row Component with toggle or chevron
+// Setting Row Component
 function SettingRow({ icon: Icon, title, description, value, onChange, type = 'toggle', onClick }) {
   if (type === 'link') {
     return (
       <button
         onClick={onClick}
-        className="w-full flex items-center justify-between p-4 hover:bg-dark-800 transition-colors rounded-lg group"
+        className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-[#12233C] transition-colors rounded-xl group text-left cursor-pointer"
       >
         <div className="flex items-center gap-3 flex-1">
-          <div className="w-10 h-10 bg-dark-800 rounded-lg flex items-center justify-center group-hover:bg-dark-700 transition-colors">
-            <Icon className="w-5 h-5 text-gray-400" />
+          <div className="w-9 h-9 bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-lg flex items-center justify-center group-hover:bg-[#0B1F3A] dark:group-hover:bg-[#00C2FF] group-hover:text-white dark:group-hover:text-[#070E1A] transition-colors text-[#0B1F3A] dark:text-[#00C2FF]">
+            <Icon className="w-4 h-4" />
           </div>
-          <div className="text-left">
-            <p className="text-white font-medium">{title}</p>
-            {description && <p className="text-gray-400 text-sm">{description}</p>}
+          <div>
+            <p className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">{title}</p>
+            {description && <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">{description}</p>}
           </div>
         </div>
-        <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-4 h-4 text-[#94A3B8] dark:text-[#64748B] group-hover:text-[#0B1F3A] dark:group-hover:text-[#00C2FF] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </button>
@@ -63,34 +44,36 @@ function SettingRow({ icon: Icon, title, description, value, onChange, type = 't
 
   if (type === 'info') {
     return (
-      <div className="flex items-start gap-3 p-4 bg-dark-800 rounded-lg">
-        <div className="w-10 h-10 bg-dark-700 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Icon className="w-5 h-5 text-gray-400" />
+      <div className="flex items-start justify-between gap-3 p-3.5 bg-slate-50/75 dark:bg-[#0B1524]/60 border border-slate-200/60 dark:border-[#1E3A5F]/80 rounded-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-white dark:bg-[#0F1D32] border border-slate-200 dark:border-[#1E3A5F] rounded-lg flex items-center justify-center flex-shrink-0 text-[#0B1F3A] dark:text-[#00C2FF]">
+            <Icon className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">{title}</p>
+            {description && <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">{description}</p>}
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="text-white font-medium mb-1">{title}</p>
-          {description && <p className="text-gray-400 text-sm">{description}</p>}
-        </div>
-        <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wider uppercase ${
           value === 'OFF' 
-            ? 'bg-danger-dark/20 text-danger-light' 
-            : 'bg-success-dark/20 text-success-light'
+            ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700' 
+            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
         }`}>
           {value}
-        </div>
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-between p-4 hover:bg-dark-800 transition-colors rounded-lg">
+    <div className="flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-[#12233C] transition-colors rounded-xl">
       <div className="flex items-center gap-3 flex-1">
-        <div className="w-10 h-10 bg-dark-800 rounded-lg flex items-center justify-center">
-          <Icon className="w-5 h-5 text-gray-400" />
+        <div className="w-9 h-9 bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-lg flex items-center justify-center text-[#0B1F3A] dark:text-[#00C2FF]">
+          <Icon className="w-4 h-4" />
         </div>
         <div>
-          <p className="text-white font-medium">{title}</p>
-          {description && <p className="text-gray-400 text-sm">{description}</p>}
+          <p className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">{title}</p>
+          {description && <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">{description}</p>}
         </div>
       </div>
       <label className="relative inline-flex items-center cursor-pointer">
@@ -100,7 +83,7 @@ function SettingRow({ icon: Icon, title, description, value, onChange, type = 't
           onChange={(e) => onChange?.(e.target.checked)}
           className="sr-only peer"
         />
-        <div className="w-11 h-6 bg-dark-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+        <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0B1F3A] dark:peer-checked:bg-[#00C2FF]"></div>
       </label>
     </div>
   );
@@ -109,39 +92,35 @@ function SettingRow({ icon: Icon, title, description, value, onChange, type = 't
 // Section Header Component
 function SectionHeader({ title }) {
   return (
-    <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1">
+    <h2 className="text-xs font-bold text-[#123C69] dark:text-[#38BDF8] uppercase tracking-wider mb-2.5 px-1 flex items-center gap-1.5">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#00C2FF]" />
       {title}
     </h2>
   );
 }
 
+// Enterprise Settings & Policy Management Page
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const { theme, isDark, toggleTheme } = useTheme();
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // Profile form
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
 
-  // Password form
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
-
-  // Settings states (stored in localStorage)
-
-
 
   const [realtimeDetection, setRealtimeDetection] = useState(() => 
     localStorage.getItem('realtimeDetection') !== 'false'
@@ -179,7 +158,6 @@ export default function SettingsPage() {
     localStorage.setItem('saveCallHistory', saveCallHistory);
   }, [saveCallHistory]);
 
-  // Load user data on mount
   useEffect(() => {
     loadUserData();
   }, []);
@@ -206,11 +184,11 @@ export default function SettingsPage() {
     try {
       const updated = await settingsAPI.updateProfile(fullName, phone);
       setCurrentUser(updated);
-      setProfileSuccess('Profile updated successfully!');
+      setProfileSuccess('Operator profile updated successfully.');
       setTimeout(() => {
         setShowProfileModal(false);
         setProfileSuccess('');
-      }, 1500);
+      }, 1200);
     } catch (error) {
       setProfileError(error.message || 'Failed to update profile');
     } finally {
@@ -223,14 +201,13 @@ export default function SettingsPage() {
     setPasswordError('');
     setPasswordSuccess('');
 
-    // Validation
     if (newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
+      setPasswordError('New password must be at least 8 characters');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match');
+      setPasswordError('New passwords do not match');
       return;
     }
 
@@ -243,14 +220,14 @@ export default function SettingsPage() {
 
     try {
       await settingsAPI.changePassword(currentPassword, newPassword);
-      setPasswordSuccess('Password changed successfully!');
+      setPasswordSuccess('Password changed successfully.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => {
         setShowPasswordModal(false);
         setPasswordSuccess('');
-      }, 1500);
+      }, 1200);
     } catch (error) {
       setPasswordError(error.message || 'Failed to change password');
     } finally {
@@ -258,31 +235,11 @@ export default function SettingsPage() {
     }
   };
 
-  const handleProfileClick = () => {
-    setShowProfileModal(true);
-  };
-
-  const handlePasswordClick = () => {
-    setShowPasswordModal(true);
-  };
-
-  const handleAbout = () => {
-    navigate(ROUTES.ABOUT);
-  };
-
-  const handlePrivacyPolicy = () => {
-    alert('Privacy policy coming soon');
-  };
-
-  const handleHelp = () => {
-    alert('Help & support coming soon');
-  };
-
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-white">Loading settings...</div>
+        <div className="flex items-center justify-center h-64 text-sm font-mono text-[#64748B] dark:text-[#94A3B8]">
+          Loading operator security policies...
         </div>
       </Layout>
     );
@@ -290,118 +247,126 @@ export default function SettingsPage() {
 
   return (
     <Layout>
-      <div>
+      <div className="space-y-8 max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
-          <p className="text-gray-400">
-            Manage your account and application preferences
+        <div className="pb-2 border-b border-[#E2E8F0] dark:border-[#1E3A5F]">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9] tracking-tight">
+            Security Policies & Preferences
+          </h1>
+          <p className="text-sm text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+            Configure real-time voice inspection thresholds, operator profile, and privacy retention rules.
           </p>
         </div>
 
-        <div className="space-y-8">
-          {/* ACCOUNT */}
+        <div className="space-y-6">
+          {/* THEME & APPEARANCE */}
           <div>
-            <SectionHeader title="ACCOUNT" />
-            <div className="card p-2 space-y-1">
+            <SectionHeader title="Interface & Appearance" />
+            <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-2 shadow-xs space-y-1">
               <SettingRow
-                icon={UserIcon}
-                title="Profile Information"
-                description={currentUser?.email || 'Not available'}
-                type="link"
-                onClick={handleProfileClick}
-              />
-              <SettingRow
-                icon={LockIcon}
-                title="Change Password"
-                type="link"
-                onClick={handlePasswordClick}
+                icon={MoonIcon}
+                title="Dark Theme"
+                description="High-contrast cybersecurity dark theme with cyan telemetry accents"
+                value={isDark}
+                onChange={toggleTheme}
               />
             </div>
           </div>
 
-
-
-          {/* AI VOICE PROTECTION */}
+          {/* OPERATOR IDENTITY */}
           <div>
-            <SectionHeader title="AI VOICE PROTECTION" />
-            <div className="card p-2 space-y-1">
+            <SectionHeader title="Operator Identity" />
+            <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-2 shadow-xs space-y-1">
+              <SettingRow
+                icon={UserIcon}
+                title="Profile Information"
+                description={currentUser?.email || 'Authorized Operator'}
+                type="link"
+                onClick={() => setShowProfileModal(true)}
+              />
+              <SettingRow
+                icon={LockIcon}
+                title="Update Password"
+                description="Rotate operator authentication credentials"
+                type="link"
+                onClick={() => setShowPasswordModal(true)}
+              />
+            </div>
+          </div>
+
+          {/* AI VOICE PROTECTION ENGINE */}
+          <div>
+            <SectionHeader title="AI Voice Protection Engine" />
+            <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-2 shadow-xs space-y-1">
               <SettingRow
                 icon={ShieldIcon}
                 title="Real-Time Voice Detection"
+                description="Live transient audio sampling during active calls"
                 value={realtimeDetection}
                 onChange={setRealtimeDetection}
               />
               <SettingRow
                 icon={AlertIcon}
-                title="High-Risk Alerts"
+                title="High-Risk Impersonation Alerts"
+                description="Immediate prominent alert banner upon synthetic speech detection"
                 value={highRiskAlerts}
                 onChange={setHighRiskAlerts}
               />
               <SettingRow
                 icon={ChartIcon}
-                title="Show Risk Score"
+                title="Display Numeric Risk Score"
+                description="Render IBM Plex Mono score widget during active call sessions"
                 value={showRiskScore}
                 onChange={setShowRiskScore}
               />
               <SettingRow
                 icon={HistoryIcon}
-                title="Show Risk History"
+                title="Render Risk History Stream"
+                description="Display timeline trend graph in call telemetry console"
                 value={showRiskHistory}
                 onChange={setShowRiskHistory}
               />
             </div>
           </div>
 
-          {/* PRIVACY */}
+          {/* COMPLIANCE & PRIVACY */}
           <div>
-            <SectionHeader title="PRIVACY" />
-            <div className="card p-2 space-y-1">
+            <SectionHeader title="Compliance & Privacy Standards" />
+            <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-2 shadow-xs space-y-2">
               <SettingRow
                 icon={LockIcon}
                 title="Raw Audio Retention"
-                description="Voice recordings are not stored."
+                description="Strict zero-retention policy. Speech buffers are wiped after inference."
                 value="OFF"
                 type="info"
               />
               <SettingRow
                 icon={HistoryIcon}
-                title="Save Call History"
-                description="Saves call metadata only, not audio."
+                title="Persist Call Metadata"
+                description="Records session timestamps and final risk score only, never audio."
                 value={saveCallHistory}
                 onChange={setSaveCallHistory}
               />
               <SettingRow
                 icon={LockIcon}
-                title="Save Transcripts"
-                description="No call transcripts are stored."
+                title="Speech-to-Text Transcription"
+                description="No call audio is transcribed to text or stored on servers."
                 value="OFF"
                 type="info"
               />
             </div>
           </div>
 
-          {/* ABOUT */}
+          {/* PLATFORM & HELP */}
           <div>
-            <SectionHeader title="ABOUT" />
-            <div className="card p-2 space-y-1">
+            <SectionHeader title="System Information" />
+            <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-2 shadow-xs space-y-1">
               <SettingRow
                 icon={InfoIcon}
-                title="About VoiceShield"
+                title="About VoiceShield Platform"
+                description="Version v2.4.0 • Enterprise Edition"
                 type="link"
-                onClick={handleAbout}
-              />
-              <SettingRow
-                icon={LockIcon}
-                title="Privacy Policy"
-                type="link"
-                onClick={handlePrivacyPolicy}
-              />
-              <SettingRow
-                icon={InfoIcon}
-                title="Help & Support"
-                type="link"
-                onClick={handleHelp}
+                onClick={() => navigate(ROUTES.ABOUT)}
               />
             </div>
           </div>
@@ -411,125 +376,105 @@ export default function SettingsPage() {
         <Modal
           isOpen={showProfileModal}
           onClose={() => setShowProfileModal(false)}
-          title="Edit Profile"
+          title="Update Operator Profile"
         >
           <form onSubmit={handleProfileSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Full Name
-              </label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                placeholder="Your full name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                placeholder="+1 234 567 8900"
-              />
-            </div>
+            <Input
+              label="Full Name"
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Operator name"
+            />
+            <Input
+              label="Contact Phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+1 (555) 000-0000"
+            />
+            
             {profileError && (
-              <div className="text-danger-light text-sm">{profileError}</div>
+              <p className="text-xs font-semibold text-[#EF4444]">{profileError}</p>
             )}
             {profileSuccess && (
-              <div className="text-success-light text-sm">{profileSuccess}</div>
+              <p className="text-xs font-semibold text-[#10B981]">{profileSuccess}</p>
             )}
-            <div className="flex gap-3">
-              <button
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#F1F5F9] dark:border-[#1E3A5F]">
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setShowProfileModal(false)}
-                className="flex-1 px-4 py-2 bg-dark-800 text-white rounded-lg hover:bg-dark-700 transition-colors"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={profileLoading}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
-                {profileLoading ? 'Saving...' : 'Save Changes'}
-              </button>
+                {profileLoading ? 'Saving...' : 'Save Profile'}
+              </Button>
             </div>
           </form>
         </Modal>
 
-        {/* Change Password Modal */}
+        {/* Password Modal */}
         <Modal
           isOpen={showPasswordModal}
           onClose={() => setShowPasswordModal(false)}
-          title="Change Password"
+          title="Update Operator Password"
         >
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Current Password
-              </label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                placeholder="Enter current password"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                New Password
-              </label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                placeholder="Enter new password (min 8 characters)"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                placeholder="Confirm new password"
-                required
-              />
-            </div>
+            <Input
+              label="Current Password"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••••••"
+              required
+            />
+            <Input
+              label="New Password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="••••••••••••"
+              helper="Minimum 8 characters"
+              required
+            />
+            <Input
+              label="Confirm New Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••••••"
+              required
+            />
+
             {passwordError && (
-              <div className="text-danger-light text-sm">{passwordError}</div>
+              <p className="text-xs font-semibold text-[#EF4444]">{passwordError}</p>
             )}
             {passwordSuccess && (
-              <div className="text-success-light text-sm">{passwordSuccess}</div>
+              <p className="text-xs font-semibold text-[#10B981]">{passwordSuccess}</p>
             )}
-            <div className="flex gap-3">
-              <button
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#F1F5F9] dark:border-[#1E3A5F]">
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setShowPasswordModal(false)}
-                className="flex-1 px-4 py-2 bg-dark-800 text-white rounded-lg hover:bg-dark-700 transition-colors"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={passwordLoading}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
-                {passwordLoading ? 'Changing...' : 'Change Password'}
-              </button>
+                {passwordLoading ? 'Updating...' : 'Update Password'}
+              </Button>
             </div>
           </form>
         </Modal>

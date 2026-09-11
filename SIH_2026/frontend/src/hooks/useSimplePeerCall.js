@@ -1,17 +1,20 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SimplePeer from 'simple-peer';
 import { useStableWebSocket } from './useStableWebSocket';
+import { useAuth } from '../context/AuthContext';
 import { callsAPI } from '../services/api';
+import { ROUTES } from '../constants';
 
 export function useSimplePeerCall() {
   const navigate = useNavigate();
+  const { token: authToken } = useAuth();
   const [callState, setCallState] = useState('idle'); // idle, calling, ringing, connected, ended
   const [incomingCall, setIncomingCall] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [isReceiver, setIsReceiver] = useState(false); // NEW: Track if user is receiver (callee)
+  const [isReceiver, setIsReceiver] = useState(false); // Track if user is receiver (callee)
   
   const peerRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -19,8 +22,9 @@ export function useSimplePeerCall() {
   const calleeIdRef = useRef(null);
   const durationIntervalRef = useRef(null);
   const callStartTimeRef = useRef(null);
+  const endCallRef = useRef(null);
   
-  const token = localStorage.getItem('access_token');
+  const token = authToken || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('access_token') : null) || localStorage.getItem('access_token');
   const ws = useStableWebSocket('ws://localhost:8000/ws/signaling', token);
 
   // Handle incoming call
@@ -32,7 +36,14 @@ export function useSimplePeerCall() {
         call_id: msg.call_id,
         from: msg.from,
         caller_name: msg.caller_name,
-        caller_email: msg.caller_email
+        caller_email: msg.caller_email,
+        full_name: msg.caller_name,
+        email: msg.caller_email,
+        contact: {
+          id: msg.from,
+          full_name: msg.caller_name,
+          email: msg.caller_email
+        }
       });
       setCallState('ringing');
     });
@@ -82,27 +93,43 @@ export function useSimplePeerCall() {
           }
         });
         
+        let isPeerConnected = false;
+        
+        peer.on('connect', () => {
+          console.log('[WebRTC] Initiator peer connected');
+          isPeerConnected = true;
+        });
+
         peer.on('stream', (stream) => {
           console.log('[WebRTC] Got remote stream!');
+          isPeerConnected = true;
           setRemoteStream(stream);
           const audio = new Audio();
           audio.srcObject = stream;
           audio.play();
           setCallState('connected');
           startCallTimer();
-          // Global overlay will show automatically
         });
         
         peer.on('error', (err) => {
           console.error('[WebRTC] Peer error:', err);
-          endCall();
+          if (isPeerConnected) {
+            endCallRef.current?.(true);
+          }
+        });
+
+        peer.on('close', () => {
+          console.log('[WebRTC] Peer connection closed');
+          if (isPeerConnected) {
+            endCallRef.current?.(true);
+          }
         });
         
         peerRef.current = peer;
       } catch (error) {
         console.error('[Call] Failed to get microphone:', error);
         alert('Microphone access denied');
-        endCall();
+        endCallRef.current?.();
       }
     });
   }, [ws]);
@@ -137,29 +164,27 @@ export function useSimplePeerCall() {
     });
   }, [ws]);
 
-  // Handle call rejected
+  // Handle call rejected by remote peer
   useEffect(() => {
-    return ws.onMessage('call_rejected', () => {
-      console.log('[Call] Call rejected');
-      alert('Call rejected');
-      endCall();
+    return ws.onMessage('call_rejected', (msg) => {
+      console.log('[Call] Call rejected by peer:', msg);
+      endCallRef.current?.(true, msg?.call_id);
     });
   }, [ws]);
 
   // Handle call failed
   useEffect(() => {
     return ws.onMessage('call_failed', (msg) => {
-      console.log('[Call] Call failed:', msg.reason, msg.message);
-      alert(`Call failed: ${msg.message || msg.reason}`);
-      endCall();
+      console.log('[Call] Call failed:', msg?.reason, msg?.message);
+      endCallRef.current?.(true, msg?.call_id);
     });
   }, [ws]);
 
-  // Handle hangup
+  // Handle hangup from remote peer
   useEffect(() => {
-    return ws.onMessage('hangup', () => {
-      console.log('[Call] Call ended by remote user');
-      endCall();
+    return ws.onMessage('hangup', (msg) => {
+      console.log('[Call] Call ended by remote user:', msg);
+      endCallRef.current?.(true, msg?.call_id);
     });
   }, [ws]);
 
@@ -173,29 +198,32 @@ export function useSimplePeerCall() {
 
   const initiateCall = useCallback((contactId, contactName) => {
     if (!ws.isConnected) {
-      alert('Not connected to server');
+      alert('Signaling gateway is not connected. Please ensure you are connected to the network.');
       return;
     }
     
     // Generate unique call_id
     const call_id = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     currentCallIdRef.current = call_id;
-    calleeIdRef.current = contactId;
     
-    console.log(`[Call] Initiating call to ${contactName} (ID: ${contactId}) with call_id: ${call_id}`);
+    // Ensure numeric ID if possible for backend integer matching
+    const numericCalleeId = Number(contactId);
+    calleeIdRef.current = !isNaN(numericCalleeId) && numericCalleeId > 0 ? numericCalleeId : contactId;
+    
+    console.log(`[Call] Initiating call to ${contactName} (ID: ${calleeIdRef.current}) with call_id: ${call_id}`);
     setCallState('calling');
     setIsReceiver(false); // CALLER role
     
-     ws.sendMessage({
-    type: 'call_initiate',
-    call_id: call_id,
-    callee_id: contactId,
-    callee_name: contactName
-  });
+    ws.sendMessage({
+      type: 'call_initiate',
+      call_id: call_id,
+      callee_id: calleeIdRef.current,
+      callee_name: contactName
+    });
 
-  // Navigate to active call page
-  navigate(`/call/${call_id}`);
-}, [ws, navigate]);
+    // Navigate to active call page
+    navigate(`/call/${call_id}`);
+  }, [ws, navigate]);
 
 
   const acceptCall = useCallback(async () => {
@@ -212,7 +240,9 @@ export function useSimplePeerCall() {
     const callerId = incomingCall.from;
     
     // For receiver: store caller as the "other party" for history
-    calleeIdRef.current = callerId;
+    const numericCallerId = Number(callerId);
+    calleeIdRef.current = !isNaN(numericCallerId) && numericCallerId > 0 ? numericCallerId : callerId;
+    currentCallIdRef.current = callId;
     
     setIncomingCall(null);
     navigate(`/call/${callId}`);
@@ -255,20 +285,36 @@ export function useSimplePeerCall() {
         }
       });
       
+      let isPeerConnected = false;
+
+      peer.on('connect', () => {
+        console.log('[WebRTC] Receiver peer connected');
+        isPeerConnected = true;
+      });
+
       peer.on('stream', (stream) => {
         console.log('[WebRTC] Got remote stream!');
+        isPeerConnected = true;
         setRemoteStream(stream);
         const audio = new Audio();
         audio.srcObject = stream;
         audio.play();
         setCallState('connected');
         startCallTimer();
-        // Global overlay will show automatically
       });
       
       peer.on('error', (err) => {
         console.error('[WebRTC] Peer error:', err);
-        endCall();
+        if (isPeerConnected) {
+          endCallRef.current?.(true);
+        }
+      });
+
+      peer.on('close', () => {
+        console.log('[WebRTC] Peer connection closed');
+        if (isPeerConnected) {
+          endCallRef.current?.(true);
+        }
       });
       
       peerRef.current = peer;
@@ -311,34 +357,41 @@ export function useSimplePeerCall() {
     }
   }, []);
 
-  const endCall = useCallback(async () => {
-    console.log('[Call] Ending call');
-    console.log('[Call Debug] callState:', callState);
-    console.log('[Call Debug] callStartTimeRef:', callStartTimeRef.current);
-    console.log('[Call Debug] currentCallIdRef:', currentCallIdRef.current);
-    console.log('[Call Debug] calleeIdRef:', calleeIdRef.current);
-    console.log('[Call Debug] callDuration:', callDuration);
-    
-    // NOTE: Call history is now automatically saved by backend on hangup (Task 4.2)
-    // No need to manually save from frontend
-    // Backend _handle_hangup_routing() saves call history with risk scores
+  const endCall = useCallback((isRemote = false, explicitCallId = null) => {
+    console.log('[Call] Ending call, isRemote:', isRemote, 'explicitCallId:', explicitCallId);
     
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
     }
     
     if (peerRef.current) {
-      peerRef.current.destroy();
+      try {
+        peerRef.current.destroy();
+      } catch (e) {
+        console.warn('[WebRTC] Peer destroy error:', e);
+      }
       peerRef.current = null;
     }
     
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      try {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        console.warn('[Call] Stop track error:', e);
+      }
       localStreamRef.current = null;
     }
     
-    const callId = currentCallIdRef.current;
-    if (callId) {
+    // Resolve callId from param, ref, or URL path
+    const urlCallId = typeof window !== 'undefined' && window.location.pathname.startsWith('/call/')
+      ? window.location.pathname.split('/call/')[1]
+      : null;
+    const callId = explicitCallId || currentCallIdRef.current || urlCallId;
+    
+    // Only send hangup upstream if this side initiated the termination
+    if (!isRemote && callId) {
+      console.log('[Call] Sending hangup upstream for call_id:', callId);
       ws.sendMessage({ 
         type: 'hangup', 
         call_id: callId 
@@ -354,13 +407,58 @@ export function useSimplePeerCall() {
     currentCallIdRef.current = null;
     calleeIdRef.current = null;
     callStartTimeRef.current = null;
-  }, [ws, callState, callDuration]);
+
+    // Immediately navigate away from active call screen on both sides
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/call/')) {
+      navigate(ROUTES.DASHBOARD);
+    }
+  }, [ws, navigate]);
+
+  // Keep ref synchronized on every render
+  endCallRef.current = endCall;
+
+  // Listen to beforeunload to cleanly hangup if window or tab is closed
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (callState !== 'idle') {
+        const urlCallId = typeof window !== 'undefined' && window.location.pathname.startsWith('/call/')
+          ? window.location.pathname.split('/call/')[1]
+          : null;
+        const callId = currentCallIdRef.current || urlCallId;
+        if (callId) {
+          ws.sendMessage({ type: 'hangup', call_id: callId });
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [ws, callState]);
 
   const formatDuration = useCallback(() => {
     const minutes = Math.floor(callDuration / 60);
     const seconds = callDuration % 60;
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }, [callDuration]);
+
+  const simulateIncomingCall = useCallback((callerData = null) => {
+    const simCallId = `call_sim_${Date.now()}`;
+    currentCallIdRef.current = simCallId;
+    const simCaller = {
+      call_id: simCallId,
+      from: callerData?.id || 999,
+      caller_name: callerData?.full_name || 'Dr. Evelyn Reed (Verified)',
+      caller_email: callerData?.email || 'evelyn.reed@enterprise.corp',
+      full_name: callerData?.full_name || 'Dr. Evelyn Reed (Verified)',
+      email: callerData?.email || 'evelyn.reed@enterprise.corp',
+      contact: {
+        id: callerData?.id || 999,
+        full_name: callerData?.full_name || 'Dr. Evelyn Reed (Verified)',
+        email: callerData?.email || 'evelyn.reed@enterprise.corp'
+      }
+    };
+    setIncomingCall(simCaller);
+    setCallState('ringing');
+  }, []);
 
   return {
     callState,
@@ -374,6 +472,7 @@ export function useSimplePeerCall() {
     rejectCall,
     toggleMute,
     endCall,
-    formatDuration
+    formatDuration,
+    simulateIncomingCall
   };
 }

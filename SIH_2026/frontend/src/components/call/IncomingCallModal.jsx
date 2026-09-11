@@ -2,25 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import Avatar from '../common/Avatar';
 import Button from '../common/Button';
 
-// Incoming Call Modal Component
+// Incoming Call Modal Component - Enterprise Security Verification
 export default function IncomingCallModal({ 
   caller, 
   onAccept, 
-  onReject,
+  onReject, 
   isOpen 
 }) {
   const oscillatorRef = useRef(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
 
-  // Play ringing sound effect and cleanup on unmount
   useEffect(() => {
     if (isOpen && caller) {
-      console.log('?? Incoming call from:', caller?.full_name);
-      
-      // Try to play ringtone
+      console.log('Incoming call from:', caller?.full_name);
       playRingtone();
-      
-      // Cleanup function
       return () => {
         stopRingtone();
       };
@@ -31,7 +26,6 @@ export default function IncomingCallModal({
     try {
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       
-      // Check if context is suspended
       if (audioContext.state === 'suspended') {
         await audioContext.resume();
       }
@@ -42,25 +36,20 @@ export default function IncomingCallModal({
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      // Configure ringtone
       oscillator.type = 'sine';
       oscillator.frequency.value = 480;
-      gainNode.gain.value = 0.5; // 50% volume
+      gainNode.gain.value = 0.4;
       
-      // Start oscillator
       oscillator.start();
       
-      // Alternating pattern
       const interval = setInterval(() => {
         oscillator.frequency.value = oscillator.frequency.value === 480 ? 620 : 480;
       }, 500);
       
       oscillatorRef.current = { audioContext, oscillator, gainNode, interval };
-      
-      console.log('? Ringtone playing');
       setAudioBlocked(false);
     } catch (error) {
-      console.warn('?? Ringtone blocked:', error.message);
+      console.warn('Ringtone blocked:', error.message);
       setAudioBlocked(true);
     }
   };
@@ -73,10 +62,9 @@ export default function IncomingCallModal({
         oscillator.stop();
         audioContext.close();
       } catch (e) {
-        // Already stopped
+        // Ignored
       }
       oscillatorRef.current = null;
-      console.log('?? Ringtone stopped');
     }
   };
 
@@ -90,7 +78,6 @@ export default function IncomingCallModal({
     onReject();
   };
 
-  // Enable audio manually (for browsers that block autoplay)
   const enableAudio = () => {
     stopRingtone();
     playRingtone();
@@ -99,52 +86,54 @@ export default function IncomingCallModal({
   if (!isOpen || !caller) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* High-trust Backdrop */}
+      <div className="absolute inset-0 bg-[#0B1F3A]/70 backdrop-blur-md" />
       
-      {/* Modal Content */}
-      <div className="relative bg-dark-900 border border-dark-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4">
+      {/* Modal Dialog */}
+      <div className="relative bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-auto text-center overflow-hidden text-[#0F172A] dark:text-[#F1F5F9] transition-colors">
+        {/* Security Header Band */}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-[#12233C] border border-slate-200 dark:border-[#1E3A5F] text-xs font-semibold text-[#0B1F3A] dark:text-slate-200 mb-6">
+          <span className="w-2 h-2 rounded-full bg-[#00C2FF] animate-pulse" />
+          SECURE INCOMING VOICE CALL
+        </div>
+
         {/* Caller Avatar */}
         <div className="flex flex-col items-center">
-          <Avatar 
-            name={caller.full_name} 
-            src={caller.avatar}
-            size="2xl" 
-            className="mb-6 ring-4 ring-primary-600/50 animate-pulse"
-          />
-          
-          {/* Caller Name */}
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {caller.full_name}
-          </h2>
-          
-          {/* Caller Email */}
-          <p className="text-gray-400 mb-1">{caller.email}</p>
-          
-          {/* Caller Phone Number (if available) */}
-          {caller.phone_number && (
-            <p className="text-gray-400 mb-1">{caller.phone_number}</p>
-          )}
-          
-          {/* Call Status */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 bg-primary-600 rounded-full animate-pulse" />
-            <p className="text-primary-400 text-sm font-medium">
-              Incoming audio call...
-            </p>
+          <div className="relative mb-4">
+            <Avatar 
+              name={caller.full_name || caller.caller_name || 'Caller'} 
+              src={caller.avatar}
+              size="2xl" 
+              className="ring-4 ring-[#0B1F3A]/10 dark:ring-[#00C2FF]/20 shadow-md"
+            />
+            <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-[#10B981] border-2 border-white dark:border-[#0F1D32]" />
           </div>
           
-          {/* Audio Blocked Warning */}
+          <h2 className="text-xl font-bold text-[#0B1F3A] dark:text-white mb-1">
+            {caller.full_name || caller.caller_name || 'Authorized Caller'}
+          </h2>
+          
+          <p className="text-sm font-mono text-[#64748B] dark:text-[#94A3B8] mb-2">{caller.email || caller.caller_email || 'Secured VoIP line'}</p>
+          
+          {caller.phone_number && (
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mb-2">{caller.phone_number}</p>
+          )}
+
+          <div className="flex items-center gap-1.5 text-xs text-[#008BB8] dark:text-[#38BDF8] bg-[#00C2FF]/10 dark:bg-[#00C2FF]/20 border border-transparent dark:border-[#00C2FF]/30 px-3 py-1 rounded-full mb-6 font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00C2FF] animate-ping" />
+            Live AI Impersonation Shield Armed
+          </div>
+          
           {audioBlocked && (
-            <div className="mb-4 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <p className="text-yellow-400 text-xs">
-                ?? Ringtone blocked by browser.{' '}
+            <div className="mb-4 px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg text-left">
+              <p className="text-amber-800 dark:text-amber-200 text-xs">
+                Ringtone blocked by browser.{' '}
                 <button 
                   onClick={enableAudio}
-                  className="underline hover:text-yellow-300"
+                  className="underline font-bold hover:text-amber-950 dark:hover:text-amber-100"
                 >
-                  Click to enable
+                  Click to play audio
                 </button>
               </p>
             </div>
@@ -152,33 +141,29 @@ export default function IncomingCallModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4 mt-4">
+        <div className="grid grid-cols-2 gap-3 mt-2">
           <Button
             variant="danger"
             size="lg"
             onClick={handleReject}
-            className="flex-1 py-4"
+            className="w-full py-3.5 flex items-center justify-center gap-2"
           >
-            <div className="flex flex-col items-center">
-              <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
-              </svg>
-              <span className="font-semibold">Decline</span>
-            </div>
+            <svg className="w-5 h-5 transform rotate-[135deg]" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21c1.12.45 2.33.69 3.48.69a1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.15.24 2.36.69 3.48a1 1 0 01-.21 1.11l-2.36 2.2z" />
+            </svg>
+            <span>Decline</span>
           </Button>
           
           <Button
             variant="success"
             size="lg"
             onClick={handleAccept}
-            className="flex-1 py-4 animate-pulse"
+            className="w-full py-3.5 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
           >
-            <div className="flex flex-col items-center">
-              <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              <span className="font-semibold">Accept</span>
-            </div>
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21c1.12.45 2.33.69 3.48.69a1 1 0 011 1v3.5a1 1 0 01-1 1A17 17 0 013 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.15.24 2.36.69 3.48a1 1 0 01-.21 1.11l-2.36 2.2z" />
+            </svg>
+            <span>Accept</span>
           </Button>
         </div>
       </div>

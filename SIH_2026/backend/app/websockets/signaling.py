@@ -402,15 +402,32 @@ async def _handle_hangup_routing(
             "by": user_id
         }, other_user_id)
     
+    # Execute Mandatory 8-Step Call Termination Lifecycle in detector middleware
+    final_verdict = None
+    try:
+        from app.services.live_call_detector_middleware import detector_middleware
+        final_verdict = await detector_middleware.terminate_call(call_id)
+        if final_verdict:
+            logger.info(
+                f"Call {call_id}: Final blockchain audit confirmed: "
+                f"state={final_verdict.get('voice_status')}, tx={final_verdict.get('blockchain_audit', {}).get('tx_hash')}"
+            )
+    except Exception as term_err:
+        logger.warning(f"Error terminating detector middleware for call {call_id}: {term_err}")
+
     # Save call history before ending session
     call_history_service = CallHistoryService(db)
     final_session = session_manager.end_session(call_id)
     
     if final_session:
-        # Extract final risk data from call session (if available)
+        # Extract final risk data from call session or detector middleware final verdict
         final_risk_level = getattr(final_session, 'final_risk_level', None)
         final_risk_score = getattr(final_session, 'final_risk_score', None)
         
+        if final_verdict:
+            final_risk_level = final_verdict.get("risk_level", final_risk_level or "LOW")
+            final_risk_score = int(round(final_verdict.get("risk_score", final_risk_score or 0)))
+
         # Create call history record
         result = await call_history_service.create_call_record(
             call_session=final_session,

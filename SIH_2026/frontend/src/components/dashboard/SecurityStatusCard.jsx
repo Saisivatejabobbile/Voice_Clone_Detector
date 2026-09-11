@@ -1,27 +1,26 @@
-import Card, { CardHeader, CardBody } from '../common/Card';
 import Badge from '../common/Badge';
 import { ShieldIcon, AlertIcon, ExclamationIcon } from '../../utils/icons';
 
-// Security Status Card Component
+// Security Status Card Component - Enterprise Cybersecurity Audit Panel
 export default function SecurityStatusCard({ status = 'protected' }) {
   const statusConfig = {
     protected: {
-      icon: <ShieldIcon className="w-5 h-5" />,
-      title: 'Protected',
-      color: 'success',
-      message: 'All systems are actively monitoring for threats',
+      icon: <ShieldIcon className="w-4 h-4 text-[#10B981]" />,
+      title: 'Shield Armed',
+      variant: 'success',
+      message: 'Neural speech analysis active. Zero voice anomalies detected.',
     },
     warning: {
-      icon: <AlertIcon className="w-5 h-5" />,
-      title: 'Warning',
-      color: 'warning',
-      message: 'Some security features need attention',
+      icon: <AlertIcon className="w-4 h-4 text-[#F59E0B]" />,
+      title: 'Caution Required',
+      variant: 'warning',
+      message: 'Recent call exhibited elevated synthetic speech probability.',
     },
     danger: {
-      icon: <ExclamationIcon className="w-5 h-5" />,
-      title: 'At Risk',
-      color: 'danger',
-      message: 'Immediate action required',
+      icon: <ExclamationIcon className="w-4 h-4 text-[#EF4444]" />,
+      title: 'Threat Detected',
+      variant: 'danger',
+      message: 'Active impersonation attempt neutralized in recent session.',
     },
   };
 
@@ -30,70 +29,65 @@ export default function SecurityStatusCard({ status = 'protected' }) {
   const securityChecks = [
     {
       id: 1,
-      label: 'Call with NFC detection',
+      label: 'Real-Time AudioWorklet Signal Pipeline',
       status: 'active',
-      value: 'Live now',
-      time: '7 min ago',
+      value: 'Operational',
+      time: 'Live',
+      variant: 'success',
     },
     {
       id: 2,
-      label: 'Call risk',
-      status: 'safe',
-      value: 'Medium Risk',
-      time: '11 min ago',
+      label: 'Transient Processing & No-Storage Vault',
+      status: 'active',
+      value: 'Enforced',
+      time: 'Strict',
+      variant: 'success',
     },
     {
       id: 3,
-      label: 'Call with Unknown caller',
-      status: 'alert',
-      value: 'High Risk',
-      time: '21 hours ago',
+      label: 'Multi-lingual Neural Impersonation Model',
+      status: 'active',
+      value: 'Armed v2.4',
+      time: '99.8% Conf.',
+      variant: 'ai',
     },
   ];
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Your Security Status</h2>
-          <Badge variant={config.color} className="flex items-center gap-2">
-            {config.icon} {config.title}
+    <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-4 sm:p-6 shadow-sm transition-colors min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F1F5F9] dark:border-[#1E3A5F] mb-4">
+        <div>
+          <h2 className="text-base font-bold text-[#0B1F3A] dark:text-white">Active Protection State</h2>
+          <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">{config.message}</p>
+        </div>
+        <div className="self-start sm:self-auto shrink-0">
+          <Badge variant={config.variant} className="flex items-center gap-1.5">
+            {config.icon}
+            {config.title}
           </Badge>
         </div>
-      </CardHeader>
-      
-      <CardBody>
-        <p className="text-gray-400 text-sm mb-6">{config.message}</p>
-        
-        <div className="space-y-4">
-          {securityChecks.map((check) => (
-            <div 
-              key={check.id}
-              className="flex items-center justify-between p-3 bg-dark-800 rounded-lg hover:bg-dark-700 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${
-                  check.status === 'active' ? 'bg-success-light animate-pulse' :
-                  check.status === 'safe' ? 'bg-warning-light' :
-                  'bg-danger-light'
-                }`} />
-                <div>
-                  <p className="text-white text-sm font-medium">{check.label}</p>
-                  <p className="text-gray-500 text-xs">{check.time}</p>
-                </div>
+      </div>
+
+      <div className="space-y-3">
+        {securityChecks.map((check) => (
+          <div 
+            key={check.id}
+            className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-[#0B1524] border border-slate-100 dark:border-[#1E3A5F] rounded-lg hover:border-slate-200 dark:hover:border-[#00C2FF]/40 transition-colors min-w-0"
+          >
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <span className="w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_6px_#10B981] shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[#0B1F3A] dark:text-slate-200 truncate">{check.label}</p>
+                <p className="text-[11px] font-mono text-[#64748B] dark:text-[#94A3B8]">{check.time}</p>
               </div>
-              
-              <Badge variant={
-                check.status === 'active' ? 'success' :
-                check.status === 'safe' ? 'warning' :
-                'danger'
-              } size="sm">
-                {check.value}
-              </Badge>
             </div>
-          ))}
-        </div>
-      </CardBody>
-    </Card>
+            
+            <Badge variant={check.variant} size="sm" className="shrink-0">
+              {check.value}
+            </Badge>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

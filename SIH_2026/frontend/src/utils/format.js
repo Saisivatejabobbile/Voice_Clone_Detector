@@ -1,4 +1,4 @@
-﻿// Formatting utilities
+// Formatting utilities
 
 // Format time in seconds to MM:SS
 export const formatDuration = (seconds) => {
@@ -47,10 +47,11 @@ export const formatRelativeTime = (timestamp) => {
 
 // Get initials from name
 export const getInitials = (name) => {
-  if (!name) return '?';
-  const words = name.trim().split(' ');
-  if (words.length === 1) return words[0][0].toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  if (!name || typeof name !== 'string') return '?';
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return (words[0][0] || '?').toUpperCase();
+  return ((words[0][0] || '') + (words[words.length - 1][0] || '')).toUpperCase() || '?';
 };
 
 // Format percentage

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-// Reusable Modal Component
+// Reusable Enterprise Modal Component
 export default function Modal({ 
   isOpen, 
   onClose, 
@@ -45,9 +45,9 @@ export default function Modal({
   
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
+      {/* High-trust Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/70 transition-opacity"
+        className="fixed inset-0 bg-[#0B1F3A]/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -55,20 +55,24 @@ export default function Modal({
       {/* Modal Container */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div 
-          className={`relative bg-dark-900 border border-dark-700 rounded-lg shadow-2xl w-full ${sizes[size]} transform transition-all`}
+          className={`relative bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl shadow-2xl w-full ${sizes[size]} transform transition-all overflow-hidden`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {(title || showClose) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-dark-800">
-              {title && <h3 className="text-xl font-semibold text-white">{title}</h3>}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#F1F5F9] dark:border-[#1E3A5F] bg-white dark:bg-[#0F1D32]">
+              {title && (
+                <h3 className="text-lg font-bold text-[#0B1F3A] dark:text-white">
+                  {title}
+                </h3>
+              )}
               {showClose && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="p-1 rounded-lg text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#162C4E] transition-colors"
                   aria-label="Close modal"
                 >
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -77,7 +81,7 @@ export default function Modal({
           )}
           
           {/* Body */}
-          <div className="px-6 py-4">
+          <div className="px-6 py-5">
             {children}
           </div>
         </div>
@@ -89,7 +93,7 @@ export default function Modal({
 // Modal Footer Component
 export function ModalFooter({ children, className = '' }) {
   return (
-    <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t border-dark-800 ${className}`}>
+    <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F] bg-slate-50/75 dark:bg-[#0B1524]/75 ${className}`}>
       {children}
     </div>
   );

@@ -1,5 +1,9 @@
+import { useNavigate } from 'react-router-dom';
 import { SimpleLayout } from '../components/layout/Layout';
 import Logo from '../components/layout/Logo';
+import Button from '../components/common/Button';
+import ThemeToggle from '../components/common/ThemeToggle';
+import { ROUTES } from '../constants';
 import { 
   ShieldIcon, 
   LockIcon, 
@@ -10,137 +14,147 @@ import {
   PhoneIcon
 } from '../utils/icons';
 
+// Enterprise About & System Architecture Page
 export default function AboutPage() {
+  const navigate = useNavigate();
+
   const features = [
     {
-      icon: <BrainIcon className="w-8 h-8" />,
-      title: 'Real-Time AI Detection',
-      description: 'Advanced machine learning models analyze voice patterns in real-time to detect synthetic voices.',
+      icon: <BrainIcon className="w-6 h-6 text-[#0B1F3A] dark:text-[#00C2FF]" />,
+      title: 'Real-Time Neural Detection',
+      description: 'Advanced machine learning models analyze voice acoustic anomalies in real time during active WebRTC calls.',
     },
     {
-      icon: <LockIcon className="w-8 h-8" />,
-      title: 'Privacy-First Design',
-      description: 'No audio recordings. All processing is transient and secure with zero data retention.',
+      icon: <LockIcon className="w-6 h-6 text-[#0B1F3A] dark:text-[#00C2FF]" />,
+      title: 'Zero-Retention Architecture',
+      description: 'Zero audio persistence. Transient in-memory processing guarantees complete privacy and institutional regulatory compliance.',
     },
     {
-      icon: <ShieldIcon className="w-8 h-8" />,
-      title: 'Live Risk Assessment',
-      description: 'Get instant risk scores during calls with clear recommendations for action.',
+      icon: <ShieldIcon className="w-6 h-6 text-[#0B1F3A] dark:text-[#00C2FF]" />,
+      title: 'Real-Time Risk Scoring',
+      description: 'Live 0–100% Impersonation Risk index with instant recommendations (Safe, Suspicious, High Risk, Critical).',
     },
     {
-      icon: <MaskIcon className="w-8 h-8" />,
-      title: 'Transparent Analysis',
-      description: 'See detailed analysis metrics and understand how risk levels are determined.',
+      icon: <MaskIcon className="w-6 h-6 text-[#0B1F3A] dark:text-[#00C2FF]" />,
+      title: 'Multi-Modal Forensic Breakdown',
+      description: 'Inspect acoustic jitter, prosodic variation, and spectral consistency metrics directly in your operational console.',
     },
   ];
 
   const howItWorks = [
     {
-      step: '1',
-      title: 'Start a Call',
-      description: 'Make a voice call to any of your contacts using our secure WebRTC connection.',
-      icon: <PhoneIcon className="w-6 h-6" />,
+      step: '01',
+      title: 'Signal Ingestion',
+      description: 'WebRTC establishes an end-to-end encrypted voice session with authorized contacts.',
+      icon: <PhoneIcon className="w-5 h-5 text-[#0B1F3A] dark:text-[#00C2FF]" />,
     },
     {
-      step: '2',
-      title: 'Automatic Analysis',
-      description: 'Our AI analyzes the remote caller\'s voice in real-time, detecting synthetic characteristics.',
-      icon: <BrainIcon className="w-6 h-6" />,
+      step: '02',
+      title: 'AudioWorklet Framing',
+      description: 'AudioWorklet captures 16kHz raw PCM buffers in ephemeral memory on the receiver client.',
+      icon: <BrainIcon className="w-5 h-5 text-[#00C2FF]" />,
     },
     {
-      step: '3',
-      title: 'Risk Assessment',
-      description: 'Receive live risk scores (LOW/MEDIUM/HIGH) with actionable recommendations.',
-      icon: <ShieldIcon className="w-6 h-6" />,
+      step: '03',
+      title: 'Neural Inference',
+      description: 'WebSocket streams feed acoustic and prosodic models to detect synthetic synthesis artifacts.',
+      icon: <ShieldIcon className="w-5 h-5 text-[#0B1F3A] dark:text-[#00C2FF]" />,
     },
     {
-      step: '4',
-      title: 'Stay Protected',
-      description: 'Make informed decisions about your conversations with real-time voice integrity verification.',
-      icon: <CheckCircleIcon className="w-6 h-6" />,
+      step: '04',
+      title: 'Live Risk Scoring',
+      description: 'Actionable impersonation telemetry is broadcast back to the operator console with sub-100ms latency.',
+      icon: <CheckCircleIcon className="w-5 h-5 text-[#10B981]" />,
     },
   ];
 
   const faq = [
     {
       question: 'What is VoiceShield?',
-      answer: 'VoiceShield is a privacy-first real-time voice integrity security layer that detects AI-generated voices during calls, helping you stay protected from voice impersonation and fraud.',
+      answer: 'VoiceShield is an institutional-grade, real-time voice integrity security layer designed to detect AI-generated and cloned voice impersonation attacks during live voice communications.',
     },
     {
-      question: 'How does voice analysis work?',
-      answer: 'VoiceShield uses advanced machine learning to analyze acoustic and prosodic characteristics of the remote caller\'s voice. Our models detect patterns typical of synthetic voice generation in real-time.',
+      question: 'How does real-time voice analysis work?',
+      answer: 'VoiceShield captures transient audio chunks via an AudioWorklet pipeline on the receiver side. These frames are analyzed using neural network feature extractors that evaluate acoustic micro-tremors, prosodic pitch flow, and synthetic synthesis boundaries.',
     },
     {
-      question: 'Is my audio data stored?',
-      answer: 'No. VoiceShield operates with a strict no-storage policy. All audio processing is transient and happens in memory only. No recordings, transcripts, or voice data are ever saved.',
+      question: 'Is raw audio or voice data ever stored?',
+      answer: 'No. VoiceShield enforces a strict Zero-Retention policy. Audio processing occurs strictly in transient memory buffers and is wiped immediately after inference. No audio recordings, transcripts, or biometric fingerprints are ever saved to disk or cloud databases.',
     },
     {
-      question: 'What do the risk levels mean?',
-      answer: 'LOW (0-30): Voice appears natural. MEDIUM (31-70): Moderate synthetic indicators detected, stay alert. HIGH (71-100): Strong synthetic indicators, perform independent verification.',
+      question: 'What do the risk score thresholds mean?',
+      answer: '0–30% (SAFE): Human speech verified. 31–60% (SUSPICIOUS): Elevated synthetic acoustic variance; proceed with caution. 61–80% (HIGH RISK): High confidence of synthetic speech. 81–100% (CRITICAL): Strong automated synthesis indicators; recommend secondary out-of-band verification.',
     },
     {
-      question: 'Does this work with any phone system?',
-      answer: 'Currently, VoiceShield works with browser-based WebRTC calls. Future versions will support integration with VoIP systems and traditional telephony.',
-    },
-    {
-      question: 'Can I use this for group calls?',
-      answer: 'The current version supports one-to-one calls. Multi-party call support is planned for future releases.',
+      question: 'Why does only the receiver analyze audio?',
+      answer: 'To protect operational privacy and prevent self-analysis feedback loops, analysis is conducted strictly on the incoming remote speech stream of the party you are communicating with.',
     },
   ];
 
   return (
     <SimpleLayout>
-      {/* Hero Section */}
-      <div className="bg-dark-900 border-b border-dark-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <Logo size="lg" />
-            </div>
-            <h1 className="text-5xl font-bold text-white mb-4">
-              About VoiceShield
-            </h1>
-            <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-              Privacy-first real-time voice integrity security for safer conversations
-            </p>
+      {/* Hero Header */}
+      <div className="bg-[#0B1F3A] dark:bg-[#0A1628] border-b border-[#123C69] dark:border-[#1E3A5F] text-white py-16 relative">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+          <ThemeToggle />
+        </div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
+          <div className="flex justify-center mb-2">
+            <Logo size="lg" className="[&_span.text-\[\#0B1F3A\]]:text-white [&_span.text-\[\#123C69\]]:text-[#00C2FF]" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            System Architecture & Documentation
+          </h1>
+          <p className="text-sm text-slate-300 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            Enterprise defense framework for detecting synthetic voice cloning and audio impersonation in high-stakes voice communication.
+          </p>
+          <div className="pt-2">
+            <Button
+              variant="ai"
+              size="sm"
+              onClick={() => navigate(ROUTES.DASHBOARD)}
+              className="px-5 py-2 text-xs"
+            >
+              ← Return to Security Console
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Mission Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="max-w-3xl mx-auto text-center mb-16">
-          <h2 className="text-3xl font-bold text-white mb-6">Our Mission</h2>
-          <p className="text-lg text-gray-300 leading-relaxed mb-4">
-            In an era where AI-generated voices are becoming increasingly sophisticated, 
-            VoiceShield empowers users to verify voice authenticity in real-time.
-          </p>
-          <p className="text-lg text-gray-300 leading-relaxed">
-            We believe everyone deserves to communicate with confidence, 
-            knowing that the voice on the other end is genuine.
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-16">
+        {/* Mission Statement */}
+        <div className="max-w-3xl mx-auto text-center space-y-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#123C69] dark:text-[#38BDF8]">Core Objective</h2>
+          <h3 className="text-2xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9] tracking-tight">
+            Safeguarding Critical Voice Channels
+          </h3>
+          <p className="text-sm text-[#64748B] dark:text-[#94A3B8] leading-relaxed">
+            As generative voice synthesis algorithms grow more deceptive, VoiceShield provides an automated, objective defense layer ensuring financial institutions, enterprises, and telecom operators can verify voice authenticity in real time.
           </p>
         </div>
 
-        {/* Key Features */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-white text-center mb-12">
-            Key Features
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Key Features Grid */}
+        <div>
+          <div className="text-center mb-8">
+            <h3 className="text-xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">Platform Capabilities</h3>
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1">Multi-layered defensive architecture for real-time inspection</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="card p-6 hover:shadow-glow transition-all duration-200"
+                className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-6 shadow-sm hover:border-[#CBD5E1] dark:hover:border-[#00C2FF]/60 transition-all text-left"
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 bg-primary-600/20 rounded-lg flex items-center justify-center text-primary-400 flex-shrink-0">
+                  <div className="w-12 h-12 bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs">
                     {feature.icon}
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-white mb-2">
+                    <h4 className="text-base font-bold text-[#0B1F3A] dark:text-[#F1F5F9] mb-1">
                       {feature.title}
-                    </h3>
-                    <p className="text-gray-400">{feature.description}</p>
+                    </h4>
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8] leading-relaxed">{feature.description}</p>
                   </div>
                 </div>
               </div>
@@ -148,59 +162,58 @@ export default function AboutPage() {
           </div>
         </div>
 
-        {/* How It Works */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-white text-center mb-12">
-            How It Works
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* How It Works - 4 Stage Pipeline */}
+        <div>
+          <div className="text-center mb-8">
+            <h3 className="text-xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">Execution Pipeline</h3>
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1">From raw encrypted packet to live risk telemetry</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {howItWorks.map((item, index) => (
-              <div key={index} className="text-center">
-                <div className="card p-6 mb-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-primary-600 to-primary-800 rounded-full flex items-center justify-center mx-auto mb-4 text-white">
+              <div key={index} className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-5 shadow-sm text-left">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-mono text-xs font-bold text-[#00C2FF] bg-[#00C2FF]/10 px-2 py-0.5 rounded border border-[#00C2FF]/20">
+                    {item.step}
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-[#0B1524] flex items-center justify-center">
                     {item.icon}
                   </div>
-                  <div className="text-3xl font-bold text-primary-400 mb-2">
-                    {item.step}
-                  </div>
-                  <h3 className="text-lg font-semibold text-white mb-2">
-                    {item.title}
-                  </h3>
-                  <p className="text-gray-400 text-sm">{item.description}</p>
                 </div>
+                <h4 className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9] mb-1">
+                  {item.title}
+                </h4>
+                <p className="text-xs text-[#64748B] dark:text-[#94A3B8] leading-relaxed">{item.description}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Privacy Commitment */}
-        <div className="mb-16">
-          <div className="card p-8 bg-gradient-to-br from-success-dark/10 to-dark-800 border-2 border-success-dark/30">
-            <div className="flex items-start gap-6">
-              <div className="w-16 h-16 bg-success-dark/20 rounded-lg flex items-center justify-center text-success-light flex-shrink-0">
-                <LockIcon className="w-8 h-8" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-4">
-                  Privacy Commitment
-                </h2>
-                <div className="space-y-3 text-gray-300">
-                  <p>
-                    <span className="font-semibold text-success-light">✓ Zero Audio Retention:</span>{' '}
-                    No recordings, transcripts, or voice data are ever stored.
-                  </p>
-                  <p>
-                    <span className="font-semibold text-success-light">✓ Transient Processing:</span>{' '}
-                    All analysis happens in memory and is discarded immediately.
-                  </p>
-                  <p>
-                    <span className="font-semibold text-success-light">✓ End-to-End Encryption:</span>{' '}
-                    WebRTC ensures your calls remain private between participants.
-                  </p>
-                  <p>
-                    <span className="font-semibold text-success-light">✓ Receiver-Side Analysis:</span>{' '}
-                    Only the remote caller's voice is analyzed, never yours.
-                  </p>
+        {/* Privacy Commitment Banner */}
+        <div className="bg-white dark:bg-[#0F1D32] border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-8 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center justify-center text-[#10B981] flex-shrink-0 shadow-xs">
+              <LockIcon className="w-7 h-7" />
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">
+                Zero-Retention Privacy Guarantee
+              </h3>
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] leading-relaxed">
+                VoiceShield strictly adheres to transient data processing rules. We maintain zero recordings, zero transcripts, and zero cloud voice biometric storage.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                <div className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300">
+                  <span className="text-[#10B981] font-bold">✓</span> No Raw Audio Storage
+                </div>
+                <div className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300">
+                  <span className="text-[#10B981] font-bold">✓</span> Memory-Only Transient Inference
+                </div>
+                <div className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300">
+                  <span className="text-[#10B981] font-bold">✓</span> End-to-End Encrypted WebRTC
+                </div>
+                <div className="flex items-center gap-2 font-medium text-emerald-800 dark:text-emerald-300">
+                  <span className="text-[#10B981] font-bold">✓</span> Receiver-Side Audio Isolation
                 </div>
               </div>
             </div>
@@ -208,22 +221,24 @@ export default function AboutPage() {
         </div>
 
         {/* FAQ Section */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-white text-center mb-12">
-            Frequently Asked Questions
-          </h2>
-          <div className="max-w-4xl mx-auto space-y-6">
+        <div>
+          <div className="text-center mb-8">
+            <h3 className="text-xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">Frequently Asked Questions</h3>
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1">Everything you need to know about VoiceShield</p>
+          </div>
+
+          <div className="max-w-3xl mx-auto space-y-4">
             {faq.map((item, index) => (
-              <div key={index} className="card p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 bg-primary-600/20 rounded-lg flex items-center justify-center text-primary-400 flex-shrink-0 mt-1">
-                    <InfoIcon className="w-5 h-5" />
+              <div key={index} className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-5 shadow-xs text-left">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-md bg-[#0B1F3A]/5 dark:bg-[#00C2FF]/10 flex items-center justify-center text-[#0B1F3A] dark:text-[#00C2FF] flex-shrink-0 mt-0.5">
+                    <InfoIcon className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                    <h4 className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9] mb-1">
                       {item.question}
-                    </h3>
-                    <p className="text-gray-400">{item.answer}</p>
+                    </h4>
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8] leading-relaxed">{item.answer}</p>
                   </div>
                 </div>
               </div>
@@ -231,14 +246,10 @@ export default function AboutPage() {
           </div>
         </div>
 
-        {/* Version & Contact */}
-        <div className="text-center">
-          <div className="card p-8 inline-block">
-            <p className="text-gray-400 mb-2">VoiceShield v1.0.0</p>
-            <p className="text-gray-500 text-sm">
-              Built for SIH 2026 • Privacy-First Voice Security
-            </p>
-          </div>
+        {/* Version Footer */}
+        <div className="text-center pt-8 border-t border-[#E2E8F0] dark:border-[#1E3A5F]">
+          <p className="text-xs font-mono text-[#64748B] dark:text-[#94A3B8]">VoiceShield Platform • Enterprise Build v2.4.0</p>
+          <p className="text-[11px] text-[#94A3B8] dark:text-[#64748B] mt-1">Smart India Hackathon 2026 Innovation Track</p>
         </div>
       </div>
     </SimpleLayout>

@@ -1,54 +1,35 @@
-﻿import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SimpleLayout } from '../components/layout/Layout';
 import Avatar from '../components/common/Avatar';
 import Badge from '../components/common/Badge';
 import WaveformAnimation from '../components/call/WaveformAnimation';
 import RiskDashboard from '../components/call/RiskDashboard';
+import CallControls from '../components/call/CallControls';
 import { ROUTES } from '../constants';
 import { useSharedSimplePeerCall } from '../hooks/useSharedSimplePeerCall';
-
 import { useAudioProcessor } from '../hooks/useAudioProcessor';
 import { getAnalysisWebSocket } from '../services/websocket';
-import { PhoneIcon, MicIcon } from '../utils/icons';
+import { PhoneIcon } from '../utils/icons';
 
-/**
- * ActiveCallPage Component
- * 
- * Displays active call UI with:
- * - Call duration prominently displayed
- * - Connection status (connecting, connected, reconnecting)
- * - Two-column layout: Call UI (left) + Risk Dashboard (right) - ONLY FOR RECEIVER
- * - Call controls (mute, end call, speaker)
- * - Real-time audio analysis with AudioWorklet integration
- * 
- * KEY BEHAVIOR:
- * - Risk Dashboard shows ONLY on RECEIVER side (not caller)
- * - Only CALLER's audio is analyzed (remoteStream on receiver = caller's audio)
- * 
- * Task: 9.2 Update ActiveCallPage with risk dashboard integration
- * Task: 7.3 Integrate AudioWorklet with WebRTC hook
- * Requirements: 14.1, 14.2, 6.6, 11.1, 11.7, 11.8
- */
+// ActiveCallPage Component - Enterprise Live Call & Voice Integrity Monitoring Room
 export default function ActiveCallPage() {
   const navigate = useNavigate();
   const { callId } = useParams();
   
- const {
-  callState,
-  isMuted,
-  incomingCall,
-  remoteStream,
-  isReceiver, // NEW: Check if user is receiver
-  toggleMute,
-  endCall,
-  formatDuration: getCallDuration
-} = useSharedSimplePeerCall();
+  const {
+    callState,
+    isMuted,
+    incomingCall,
+    remoteStream,
+    isReceiver,
+    toggleMute,
+    endCall,
+    formatDuration: getCallDuration
+  } = useSharedSimplePeerCall();
 
-
-  // Initialize analysis WebSocket connection (Task 7.3) - ONLY for receiver
+  // Initialize analysis WebSocket connection - ONLY for receiver
   useEffect(() => {
-    // ONLY connect analysis WebSocket if user is receiver
     if (!isReceiver) {
       console.log('[Analysis] Skipping analysis - user is CALLER (not receiver)');
       return;
@@ -57,25 +38,18 @@ export default function ActiveCallPage() {
     const analysisWS = getAnalysisWebSocket();
     const token = localStorage.getItem('access_token');
     
- if (token && callId) {
-  console.log('[Analysis] Connecting as RECEIVER - will analyze CALLER audio');
-  analysisWS.connectWithCallId(token, callId).catch(err => {
-    console.error('Failed to connect to analysis WebSocket:', err);
-  });
-}
-
-    
-    return () => {
-      // Cleanup handled by AudioWorklet
-    };
+    if (token && callId) {
+      console.log('[Analysis] Connecting as RECEIVER - will analyze CALLER audio');
+      analysisWS.connectWithCallId(token, callId).catch(err => {
+        console.error('Failed to connect to analysis WebSocket:', err);
+      });
+    }
   }, [callId, isReceiver]);
 
-  // Create callback to send audio chunks to analysis WebSocket (Task 7.3)
-  // Wrapped in useCallback to prevent re-creation on every render
+  // Create callback to send audio chunks to analysis WebSocket
   const sendAudioChunk = useCallback((callId, pcmData, sampleRate) => {
-    // ONLY send if user is receiver
     if (!isReceiver) {
-      return; // Skip sending - caller doesn't analyze
+      return;
     }
 
     const analysisWS = getAnalysisWebSocket();
@@ -84,12 +58,8 @@ export default function ActiveCallPage() {
     }
   }, [isReceiver]);
 
-  // Initialize AudioWorklet with remote stream (Task 7.3)
-  // Only activate when call is connected and remote stream is available AND user is receiver
+  // Initialize AudioWorklet with remote stream
   const shouldProcessAudio = callState === 'connected' && remoteStream && callId && isReceiver;
-  
-  console.log('[AudioProcessor] shouldProcessAudio:', shouldProcessAudio, 
-    '| isReceiver:', isReceiver, '| callState:', callState);
   
   useAudioProcessor(
     shouldProcessAudio ? remoteStream : null,
@@ -106,8 +76,8 @@ export default function ActiveCallPage() {
 
   // Determine caller info
   const callerInfo = incomingCall || {
-    caller_name: 'Connected User',
-    caller_email: 'user@example.com'
+    caller_name: 'Connected Participant',
+    caller_email: 'authorized.user@network.corp'
   };
 
   const handleMuteToggle = () => {
@@ -119,17 +89,17 @@ export default function ActiveCallPage() {
     navigate(ROUTES.DASHBOARD);
   };
 
-  // Determine connection status for display (Requirement 14.2, 6.6)
+  // Determine connection status for display
   const getConnectionStatus = () => {
     switch (callState) {
       case 'calling':
         return { label: 'Calling...', variant: 'warning', pulse: true };
       case 'ringing':
-        return { label: 'Ringing...', variant: 'info', pulse: true };
+        return { label: 'Ringing...', variant: 'ai', pulse: true };
       case 'connecting':
         return { label: 'Connecting...', variant: 'warning', pulse: true };
       case 'connected':
-        return { label: 'Connected', variant: 'success', pulse: true };
+        return { label: 'Encrypted Stream Connected', variant: 'success', pulse: true };
       default:
         return { label: 'Disconnected', variant: 'danger', pulse: false };
     }
@@ -141,13 +111,20 @@ export default function ActiveCallPage() {
   if (callState !== 'connected') {
     return (
       <SimpleLayout>
-        <div className="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950 flex items-center justify-center p-4">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-primary-600/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-              <PhoneIcon className="w-8 h-8 text-primary-400" />
+        <div className="min-h-screen bg-[#F5F8FC] dark:bg-[#070E1A] flex items-center justify-center p-4 transition-colors">
+          <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl p-10 max-w-md w-full text-center shadow-lg text-[#0F172A] dark:text-[#F1F5F9]">
+            <div className="w-16 h-16 bg-[#0B1F3A]/5 dark:bg-[#00C2FF]/10 border border-[#0B1F3A]/10 dark:border-[#00C2FF]/20 rounded-2xl flex items-center justify-center mx-auto mb-5 animate-pulse text-[#0B1F3A] dark:text-[#00C2FF]">
+              <PhoneIcon className="w-8 h-8" />
             </div>
-            <p className="text-white font-medium mb-2 text-xl">{connectionStatus.label}</p>
-            <p className="text-gray-400 text-lg">Establishing connection</p>
+            <h2 className="text-xl font-bold text-[#0B1F3A] dark:text-white mb-1.5">{connectionStatus.label}</h2>
+            <p className="text-sm text-[#64748B] dark:text-[#94A3B8] mb-6">Establishing secure WebRTC signaling exchange...</p>
+            
+            <button
+              onClick={handleEndCall}
+              className="px-5 py-2.5 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors shadow-sm"
+            >
+              Cancel Call
+            </button>
           </div>
         </div>
       </SimpleLayout>
@@ -156,129 +133,114 @@ export default function ActiveCallPage() {
 
   return (
     <SimpleLayout>
-      <div className="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950 p-4 lg:p-8">
-        {/* Header - Timer and Status - Prominently displayed (Requirement 6.6) */}
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex items-center justify-between">
+      <div className="min-h-screen bg-[#F5F8FC] dark:bg-[#070E1A] p-4 sm:p-6 lg:p-8 transition-colors">
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Header Bar - Timer and Status */}
+          <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-colors">
             <div className="flex items-center gap-4">
-              <div className="text-white text-3xl font-mono font-bold">
+              <div className="font-mono text-3xl font-bold text-[#0B1F3A] dark:text-[#00C2FF] tracking-tight bg-slate-50 dark:bg-[#0B1524] px-3.5 py-1 rounded-lg border border-slate-200 dark:border-[#1E3A5F]">
                 {getCallDuration()}
               </div>
+              
               <Badge variant={connectionStatus.variant} size="md">
-                {connectionStatus.pulse && (
-                  <div className="w-2 h-2 bg-success-light rounded-full mr-2 animate-pulse" />
-                )}
+                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
                 {connectionStatus.label}
               </Badge>
-              {/* Role Indicator for debugging */}
-              <Badge variant={isReceiver ? "info" : "warning"} size="sm">
-                {isReceiver ? '👂 Receiver' : '📞 Caller'}
+
+              <Badge variant={isReceiver ? "ai" : "primary"} size="sm">
+                {isReceiver ? '🛡 Receiver (Live Inspection Active)' : '🎙 Caller'}
               </Badge>
             </div>
+
+            <button
+              onClick={handleEndCall}
+              className="px-4 py-2 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-colors self-start sm:self-auto shadow-sm"
+            >
+              End Session
+            </button>
           </div>
-        </div>
 
-        {/* Two-Column Layout: Call UI + Risk Dashboard (ONLY for receiver) */}
-        <div className={`max-w-7xl mx-auto grid grid-cols-1 ${isReceiver ? 'lg:grid-cols-2' : 'lg:grid-cols-1'} gap-6`}>
-          
-          {/* Left Column: Call UI */}
-          <div className="flex flex-col">
-            <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-700 rounded-3xl p-8 lg:p-12 shadow-2xl">
-              {/* Caller Info */}
-              <div className="flex flex-col items-center mb-8">
-                <Avatar 
-                  name={callerInfo.caller_name || 'User'} 
-                  size="3xl" 
-                  status="in_call"
-                  className="mb-4 ring-4 ring-primary-600/20"
-                />
-                
-                <h2 className="text-3xl lg:text-4xl font-bold text-white mb-2 text-center">
-                  {callerInfo.caller_name || 'Connected User'}
-                </h2>
-                
-                {callerInfo.caller_email && (
-                  <p className="text-gray-400 text-base lg:text-lg">
-                    {callerInfo.caller_email}
-                  </p>
-                )}
-              </div>
-
-              {/* Waveform Visualization */}
-              <div className="mb-8">
-                <WaveformAnimation 
-                  isActive={!isMuted} 
-                  bars={35}
-                  color="primary"
-                />
-                <p className="text-center text-gray-400 text-base mt-4">
-                  {isMuted ? 'Microphone muted' : 'Call in progress...'}
-                </p>
-              </div>
-
-              {/* Call Controls */}
-              <div className="flex items-center justify-center gap-6 lg:gap-8">
-                {/* Mute Button */}
-                <button
-                  onClick={handleMuteToggle}
-                  className={`w-14 h-14 lg:w-16 lg:h-16 rounded-full flex items-center justify-center transition-all ${
-                    isMuted 
-                      ? 'bg-warning-dark hover:bg-warning-dark/80' 
-                      : 'bg-dark-700 hover:bg-dark-600'
-                  }`}
-                  title={isMuted ? 'Unmute' : 'Mute'}
-                >
-                  <MicIcon 
-                    className={`w-5 h-5 lg:w-6 lg:h-6 ${isMuted ? 'text-warning-light' : 'text-white'}`}
-                    muted={isMuted}
+          {/* Two-Column Grid: Call Room (Left) + Risk Intelligence Dashboard (Right) */}
+          <div className={`grid grid-cols-1 ${isReceiver ? 'lg:grid-cols-12' : 'max-w-2xl mx-auto'} gap-6 items-start`}>
+            
+            {/* Left Column: Call Console */}
+            <div className={`${isReceiver ? 'lg:col-span-5' : 'w-full'} flex flex-col`}>
+              <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl p-8 shadow-sm transition-colors">
+                {/* Caller Info */}
+                <div className="flex flex-col items-center mb-6">
+                  <Avatar 
+                    name={callerInfo.caller_name || 'Participant'} 
+                    size="3xl" 
+                    status="in_call"
+                    className="mb-4 ring-4 ring-[#0B1F3A]/10 dark:ring-[#00C2FF]/20 shadow-md"
                   />
-                </button>
+                  
+                  <h2 className="text-2xl font-bold text-[#0B1F3A] dark:text-white text-center">
+                    {callerInfo.caller_name || 'Connected User'}
+                  </h2>
+                  
+                  {callerInfo.caller_email && (
+                    <p className="font-mono text-xs text-[#64748B] dark:text-[#94A3B8] mt-1">
+                      {callerInfo.caller_email}
+                    </p>
+                  )}
 
-                {/* End Call Button */}
-                <button
-                  onClick={handleEndCall}
-                  className="w-16 h-16 lg:w-20 lg:h-20 rounded-full bg-danger-dark hover:bg-danger-dark/80 flex items-center justify-center transition-all"
-                  title="End Call"
-                >
-                  <PhoneIcon className="w-6 h-6 lg:w-8 lg:h-8 text-white transform rotate-135" />
-                </button>
+                  <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-[#12233C] text-[11px] font-semibold text-[#0B1F3A] dark:text-slate-200 border border-slate-200 dark:border-[#1E3A5F]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                    End-to-End Encrypted Call
+                  </div>
+                </div>
 
-                {/* Speaker Button (placeholder for future) */}
-                <button
-                  className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-dark-700 hover:bg-dark-600 flex items-center justify-center transition-all opacity-50 cursor-not-allowed"
-                  title="Speaker (Coming Soon)"
-                  disabled
-                >
-                  <svg className="w-5 h-5 lg:w-6 lg:h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.414A2 2 0 014 14v-4a2 2 0 011.586-1.414L8 7.172a1 1 0 01.707-.293V7a1 1 0 012 0v0a1 1 0 01-.707.293L7.586 8.414v7.172l2.414 1.414A1 1 0 0111 17v0a1 1 0 01-2 0v-.121a1 1 0 01-.707-.293l-2.414-1.414A1.998 1.998 0 015.586 15.414z" />
-                  </svg>
-                </button>
-              </div>
+                {/* Waveform Visualization */}
+                <div className="mb-6">
+                  <WaveformAnimation 
+                    isActive={!isMuted} 
+                    bars={32}
+                    color="cyan"
+                  />
+                  <p className="text-center text-xs text-[#64748B] dark:text-[#94A3B8] mt-2 font-medium">
+                    {isMuted ? 'Local microphone is muted' : 'Live stream is actively sampled for synthetic speech'}
+                  </p>
+                </div>
 
-              {/* Call Info */}
-              <div className="mt-6 text-center">
-                <p className="text-xs text-gray-500">
-                  End-to-end encrypted • VoiceShield
-                </p>
+                {/* Call Controls */}
+                <div className="pt-2">
+                  <CallControls 
+                    onMuteToggle={handleMuteToggle}
+                    onSpeakerToggle={() => {}}
+                    onAddUser={() => {}}
+                    onEndCall={handleEndCall}
+                    isMuted={isMuted}
+                    isSpeakerOn={false}
+                  />
+                </div>
+
+                {/* Privacy Footnote */}
+                <div className="mt-8 pt-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F] text-center">
+                  <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-mono">
+                    Zero Audio Retention Policy • Memory Discard Enforced
+                  </p>
+                </div>
               </div>
             </div>
+
+            {/* Right Column: Real-Time Risk Dashboard (Receiver only) */}
+            {isReceiver && (
+              <div className="lg:col-span-7 flex flex-col">
+                <RiskDashboard
+                  callId={callId}
+                  callerInfo={{
+                    name: callerInfo.caller_name || 'Connected Participant',
+                    phoneNumber: callerInfo.caller_email || '',
+                    avatar: null
+                  }}
+                  isAnalyzing={callState === 'connected'}
+                />
+              </div>
+            )}
+
           </div>
-
-          {/* Right Column: Risk Dashboard - ONLY SHOW FOR RECEIVER (Task 9.2) */}
-          {isReceiver && (
-            <div className="flex flex-col">
-              <RiskDashboard
-                callId={callId}
-                callerInfo={{
-                  name: callerInfo.caller_name || 'Connected User',
-                  phoneNumber: callerInfo.caller_email || '',
-                  avatar: null
-                }}
-                isAnalyzing={callState === 'connected'}
-              />
-            </div>
-          )}
-
         </div>
       </div>
     </SimpleLayout>

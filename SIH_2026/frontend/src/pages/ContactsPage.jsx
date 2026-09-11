@@ -2,29 +2,21 @@ import { useState, useMemo } from 'react';
 import Layout from '../components/layout/Layout';
 import ContactsList from '../components/contacts/ContactsList';
 import AddContactModal from '../components/contacts/AddContactModal';
-import IncomingCallModal from '../components/IncomingCallModal';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import { useSharedSimplePeerCall } from '../hooks/useSharedSimplePeerCall.jsx';
 import { useContacts } from '../hooks/useContacts';
 import { contactsAPI } from '../services/api';
 
+// Enterprise Verified Directory Page
 export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { contacts, loading: isLoading, error, fetchContacts } = useContacts();
+  const { contacts = [], loading: isLoading, fetchContacts } = useContacts();
   
   const {
-    callState,
-    incomingCall,
-    isMuted,
     isConnected,
     initiateCall,
-    acceptCall,
-    rejectCall,
-    toggleMute,
-    endCall,
-    formatDuration
   } = useSharedSimplePeerCall();
 
   const filteredContacts = useMemo(() => {
@@ -39,10 +31,10 @@ export default function ContactsPage() {
   }, [searchQuery, contacts]);
 
   const handleCall = (contact) => {
-    const contactId = contact.id || contact.contact_id;
-    const contactName = contact.full_name || contact.contact_name || 'Unknown';
+    const contactId = contact.contact_user_id || contact.id || contact.contact_id;
+    const contactName = contact.full_name || contact.contact_name || 'Participant';
     
-    console.log('Calling:', contactName, contactId);
+    console.log('Initiating encrypted call with:', contactName, contactId);
     initiateCall(contactId, contactName);
   };
 
@@ -68,61 +60,70 @@ export default function ContactsPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Connection Status */}
-        <div className={`p-4 rounded-lg border ${isConnected ? 'bg-success-dark/20 border-success-light/30' : 'bg-warning-dark/20 border-warning-light/30'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-success-light' : 'bg-warning-light'}`}></div>
-            <p className={isConnected ? 'text-success-light' : 'text-warning-light'}>
-              {isConnected ? '? Ready for calls' : '? Connecting...'}
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#E2E8F0] dark:border-[#1E3A5F]">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9] tracking-tight">
+              Verified Personnel Directory
+            </h1>
+            <p className="text-sm text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+              Authorized organizational directory enabled for real-time voice verification calls.
             </p>
           </div>
-        </div>
-
-
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Contacts</h1>
-            <p className="text-gray-400">Manage your contacts and make secure calls</p>
-          </div>
           
-          <Button variant="primary" onClick={handleAddContact}>
+          <Button variant="primary" onClick={handleAddContact} className="self-start sm:self-auto shadow-sm">
             <span className="flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Add Contact
+              Authorize Contact
             </span>
           </Button>
         </div>
 
+        {/* Connection Status Pill */}
+        <div className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold ${
+          isConnected 
+            ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300' 
+            : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300'
+        }`}>
+          <div className="flex items-center gap-2.5">
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#10B981] animate-pulse' : 'bg-[#F59E0B]'}`} />
+            <span>{isConnected ? 'Signaling Gateway Active: Ready for Outbound Audio Calls' : 'Connecting to WebRTC gateway...'}</span>
+          </div>
+          <span className="font-mono text-[11px] uppercase tracking-wider">
+            {contacts.length} Registered
+          </span>
+        </div>
+
         {/* Search Bar */}
-        <div className="card p-4">
+        <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-4 shadow-xs">
           <Input
             type="text"
-            placeholder="Search contacts..."
+            placeholder="Search directory by name, email, or credential identifier..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             }
           />
         </div>
 
-        {/* Contacts List */}
+        {/* Contacts Content */}
         <div>
           {searchQuery && (
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-gray-400 text-sm">
-                Found {filteredContacts.length} contact{filteredContacts.length !== 1 ? 's' : ''}
+            <div className="mb-4 flex items-center justify-between text-xs text-[#64748B] dark:text-[#94A3B8] px-1">
+              <p>
+                Found <span className="font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">{filteredContacts.length}</span> contact{filteredContacts.length !== 1 ? 's' : ''}
               </p>
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="text-primary-400 hover:text-primary-300 text-sm">
-                  Clear search
-                </button>
-              )}
+              <button 
+                onClick={() => setSearchQuery('')} 
+                className="text-[#008BB8] dark:text-[#00C2FF] hover:underline font-semibold cursor-pointer"
+              >
+                Clear filter
+              </button>
             </div>
           )}
           
@@ -134,8 +135,8 @@ export default function ContactsPage() {
           />
           
           {searchQuery && filteredContacts.length === 0 && (
-            <div className="card p-12 text-center">
-              <p className="text-gray-400 mb-4">No contacts found matching "{searchQuery}"</p>
+            <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-12 text-center">
+              <p className="text-sm text-[#64748B] dark:text-[#94A3B8] mb-4">No authorized directory personnel matching "{searchQuery}"</p>
               <Button variant="secondary" onClick={() => setSearchQuery('')}>Clear search</Button>
             </div>
           )}
@@ -143,11 +144,6 @@ export default function ContactsPage() {
 
         <AddContactModal isOpen={isModalOpen} onClose={handleCloseModal} onAdd={handleAddContactSubmit} />
       </div>
-
-      {/* Incoming Call Modal */}
-      <IncomingCallModal callerInfo={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
-
-
     </Layout>
   );
 }

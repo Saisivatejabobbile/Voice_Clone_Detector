@@ -4,11 +4,13 @@ import { SimpleLayout } from '../components/layout/Layout';
 import Logo from '../components/layout/Logo';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
+import ThemeToggle from '../components/common/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from '../constants';
 import { validators } from '../utils/validators';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 
+// Enterprise Authentication Login Page
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,7 +25,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Success message from registration
   const successMessage = location.state?.message;
 
   const handleChange = (e) => {
@@ -32,7 +33,6 @@ export default function LoginPage() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -42,13 +42,13 @@ export default function LoginPage() {
     const newErrors = {};
 
     if (!validators.required(formData.email)) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Corporate email address is required';
     } else if (!validators.email(formData.email)) {
-      newErrors.email = 'Invalid email address';
+      newErrors.email = 'Invalid corporate email address';
     }
 
     if (!validators.required(formData.password)) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Authentication password is required';
     }
 
     setErrors(newErrors);
@@ -68,13 +68,12 @@ export default function LoginPage() {
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
-        // Redirect to dashboard
         navigate(ROUTES.DASHBOARD);
       } else {
-        setErrors({ submit: result.error || 'Login failed. Please try again.' });
+        setErrors({ submit: result.error || 'Authentication rejected. Please check credentials.' });
       }
     } catch (error) {
-      setErrors({ submit: error.message || 'An unexpected error occurred.' });
+      setErrors({ submit: error.message || 'An unexpected authentication error occurred.' });
     } finally {
       setIsLoading(false);
     }
@@ -82,40 +81,46 @@ export default function LoginPage() {
 
   return (
     <SimpleLayout>
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-        {/* Logo */}
+      <div className="min-h-screen bg-[#F5F8FC] dark:bg-[#070E1A] flex flex-col items-center justify-center px-4 py-12 relative">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+          <ThemeToggle />
+        </div>
+
+        {/* Brand Header */}
         <div className="mb-8">
           <Logo size="lg" />
         </div>
 
-        {/* Login Form */}
+        {/* Enterprise Login Card */}
         <div className="w-full max-w-md">
-          <div className="card p-8">
-            <h1 className="text-2xl font-bold text-white mb-2">
-              Welcome Back
-            </h1>
-            <p className="text-gray-400 mb-6">
-              Login to your VoiceShield account
-            </p>
+          <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl shadow-sm p-8 text-[#0F172A] dark:text-[#F1F5F9]">
+            <div className="mb-6 text-center">
+              <h1 className="text-2xl font-bold text-[#0B1F3A] dark:text-[#F1F5F9] tracking-tight">
+                Operator Sign In
+              </h1>
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-1">
+                Access the VoiceShield real-time voice integrity security console
+              </p>
+            </div>
 
-            {/* Success Message */}
+            {/* Success Notice */}
             {successMessage && (
-              <div className="mb-4 p-3 bg-success-dark/20 border border-success rounded-lg">
-                <p className="text-sm text-success-light">{successMessage}</p>
+              <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
+                {successMessage}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
-                label="Email"
+                label="Corporate Email"
                 type="email"
                 name="email"
-                placeholder="john@example.com"
+                placeholder="operator@enterprise.corp"
                 value={formData.email}
                 onChange={handleChange}
                 error={errors.email}
                 icon={
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                   </svg>
                 }
@@ -126,12 +131,12 @@ export default function LoginPage() {
                   label="Password"
                   type={showPassword ? "text" : "password"}
                   name="password"
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   value={formData.password}
                   onChange={handleChange}
                   error={errors.password}
                   icon={
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   }
@@ -139,89 +144,61 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-gray-400 hover:text-white transition-colors"
+                  className="absolute right-3.5 top-8 text-[#94A3B8] hover:text-[#0B1F3A] dark:hover:text-[#00C2FF] transition-colors cursor-pointer"
                 >
                   {showPassword ? (
-                    <EyeOffIcon className="w-5 h-5" />
+                    <EyeOffIcon className="w-4 h-4" />
                   ) : (
-                    <EyeIcon className="w-5 h-5" />
+                    <EyeIcon className="w-4 h-4" />
                   )}
                 </button>
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
+              {/* Remember & Assistance */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <label className="flex items-center gap-2 cursor-pointer text-[#64748B] dark:text-[#94A3B8]">
                   <input
                     type="checkbox"
-                    id="rememberMe"
                     name="rememberMe"
                     checked={formData.rememberMe}
                     onChange={handleChange}
-                    className="mr-2"
+                    className="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0B1524] text-[#0B1F3A] dark:text-[#00C2FF] focus:ring-[#00C2FF]"
                   />
-                  <label htmlFor="rememberMe" className="text-sm text-gray-400">
-                    Remember me
-                  </label>
-                </div>
-                <Link to="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300">
+                  <span>Persist session token</span>
+                </label>
+                <Link to="/forgot-password" className="text-[#008BB8] dark:text-[#00C2FF] hover:underline font-semibold">
                   Forgot Password?
                 </Link>
               </div>
 
               {errors.submit && (
-                <div className="p-3 bg-danger-dark/20 border border-danger rounded-lg">
-                  <p className="text-sm text-danger">{errors.submit}</p>
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 rounded-lg text-rose-800 dark:text-rose-300 text-xs font-semibold">
+                  {errors.submit}
                 </div>
               )}
 
               <Button
                 type="submit"
                 variant="primary"
-                className="w-full"
+                className="w-full py-2.5 mt-2"
                 disabled={isLoading}
               >
-                {isLoading ? 'Logging in...' : 'Login'}
+                {isLoading ? 'Authenticating...' : 'Sign In to Console'}
               </Button>
             </form>
 
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-dark-700" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-dark-900 text-gray-400">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <Button variant="secondary" className="w-full" disabled>
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  Sign in with Google
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-6 text-center">
-              <p className="text-gray-400 text-sm">
-                Don't have an account?{' '}
-                <Link to={ROUTES.SIGN_UP} className="text-primary-400 hover:text-primary-300 font-medium">
-                  Sign Up
-                </Link>
-              </p>
+            <div className="mt-6 pt-5 border-t border-[#F1F5F9] dark:border-[#1E3A5F] text-center text-xs text-[#64748B] dark:text-[#94A3B8]">
+              Need operator credentials?{' '}
+              <Link to={ROUTES.SIGN_UP} className="text-[#008BB8] dark:text-[#00C2FF] hover:underline font-bold">
+                Register New Account
+              </Link>
             </div>
           </div>
 
-          {/* Back to Home */}
+          {/* Back Link */}
           <div className="mt-4 text-center">
-            <Link to={ROUTES.LANDING} className="text-gray-400 hover:text-white text-sm">
-              ← Back to Home
+            <Link to={ROUTES.LANDING} className="text-xs font-semibold text-[#64748B] dark:text-[#94A3B8] hover:text-[#0B1F3A] dark:hover:text-[#00C2FF] transition-colors">
+              ← Return to Main Portal
             </Link>
           </div>
         </div>

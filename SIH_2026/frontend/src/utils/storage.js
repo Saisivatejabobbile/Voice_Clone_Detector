@@ -1,11 +1,12 @@
-﻿// Local Storage Utilities
+// Local Storage Utilities with SessionStorage Tab Isolation
+// Allows two tabs to log in as different users for testing without clobbering each other
 // IMPORTANT: Never store audio data in localStorage!
 
 export const storage = {
-  // Get item from localStorage
+  // Get item from sessionStorage first (tab-isolated), fallback to localStorage
   get: (key) => {
     try {
-      const item = localStorage.getItem(key);
+      const item = sessionStorage.getItem(key) || localStorage.getItem(key);
       if (!item) return null;
       
       // Try to parse as JSON, if it fails, return as string
@@ -15,41 +16,41 @@ export const storage = {
         return item;
       }
     } catch (error) {
-      console.error('Error reading from localStorage:', error);
+      console.error('Error reading from storage:', error);
       return null;
     }
   },
 
-  // Set item in localStorage
+  // Set item in both sessionStorage (tab-isolated) and localStorage (global)
   set: (key, value) => {
     try {
-      // If value is a string and looks like a token (starts with ey), store it directly
-      if (typeof value === 'string' && (value.startsWith('eyJ') || value.startsWith('ey'))) {
-        localStorage.setItem(key, value);
-      } else {
-        // Otherwise, JSON stringify it
-        localStorage.setItem(key, JSON.stringify(value));
-      }
+      const valStr = typeof value === 'string' && (value.startsWith('eyJ') || value.startsWith('ey'))
+        ? value
+        : JSON.stringify(value);
+      sessionStorage.setItem(key, valStr);
+      localStorage.setItem(key, valStr);
     } catch (error) {
-      console.error('Error writing to localStorage:', error);
+      console.error('Error writing to storage:', error);
     }
   },
 
-  // Remove item from localStorage
+  // Remove item from both storages
   remove: (key) => {
     try {
+      sessionStorage.removeItem(key);
       localStorage.removeItem(key);
     } catch (error) {
-      console.error('Error removing from localStorage:', error);
+      console.error('Error removing from storage:', error);
     }
   },
 
-  // Clear all localStorage
+  // Clear storage
   clear: () => {
     try {
+      sessionStorage.clear();
       localStorage.clear();
     } catch (error) {
-      console.error('Error clearing localStorage:', error);
+      console.error('Error clearing storage:', error);
     }
   },
 };

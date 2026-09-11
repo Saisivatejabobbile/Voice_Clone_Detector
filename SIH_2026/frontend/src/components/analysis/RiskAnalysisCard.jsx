@@ -3,16 +3,17 @@ import RiskLevelBadge from './RiskLevelBadge';
 import Badge from '../common/Badge';
 import { SearchIcon, BrainIcon } from '../../utils/icons';
 
-// Real-time Risk Analysis Card
+// Enterprise Real-Time Risk Analysis Card
 export default function RiskAnalysisCard({ riskData, isAnalyzing = false }) {
   if (!riskData && !isAnalyzing) {
     return (
       <div className="card p-6">
         <div className="text-center py-8">
-          <div className="w-16 h-16 bg-dark-800 rounded-full flex items-center justify-center mx-auto mb-4">
-            <SearchIcon className="w-8 h-8 text-gray-500" />
+          <div className="w-14 h-14 bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-2xl flex items-center justify-center mx-auto mb-3 text-[#64748B] dark:text-[#94A3B8] shadow-sm">
+            <SearchIcon className="w-7 h-7" />
           </div>
-          <p className="text-gray-400">Waiting for analysis to begin...</p>
+          <h4 className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9] mb-1">Awaiting Telemetry Stream</h4>
+          <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">Analysis will initiate automatically upon speech detection.</p>
         </div>
       </div>
     );
@@ -22,11 +23,11 @@ export default function RiskAnalysisCard({ riskData, isAnalyzing = false }) {
     return (
       <div className="card p-6">
         <div className="text-center py-8">
-          <div className="w-16 h-16 bg-primary-600/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <BrainIcon className="w-8 h-8 text-primary-400" />
+          <div className="w-14 h-14 bg-[#00C2FF]/10 border border-[#00C2FF]/30 rounded-2xl flex items-center justify-center mx-auto mb-3 text-[#00779E] dark:text-[#00C2FF] animate-pulse">
+            <BrainIcon className="w-7 h-7" />
           </div>
-          <p className="text-white font-medium mb-2">Analyzing Voice...</p>
-          <p className="text-gray-400 text-sm">Processing audio patterns</p>
+          <h4 className="text-sm font-bold text-[#0B1F3A] dark:text-[#F1F5F9] mb-1">Analyzing Live Signal...</h4>
+          <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">Sampling acoustic & prosodic characteristics in real-time.</p>
         </div>
       </div>
     );
@@ -35,106 +36,113 @@ export default function RiskAnalysisCard({ riskData, isAnalyzing = false }) {
   const message = RISK_MESSAGES[riskData.risk_level] || RISK_MESSAGES.LOW;
 
   return (
-    <div className="card p-6 space-y-6">
+    <div className="card p-6 space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Voice Analysis</h3>
-        <Badge variant="success" className="animate-pulse">
-          <div className="w-2 h-2 bg-success-light rounded-full mr-2" />
-          Live
+      <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9] dark:border-[#1E3A5F]">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#00C2FF] animate-pulse" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-[#F1F5F9]">
+            Neural Voice Analysis
+          </h3>
+        </div>
+        <Badge variant="success" size="sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+          Real-Time
         </Badge>
       </div>
 
       {/* Risk Level Badge */}
-      <div className="flex justify-center py-4">
+      <div className="flex justify-center py-2">
         <RiskLevelBadge riskLevel={riskData.risk_level} size="lg" />
       </div>
 
       {/* Risk Message */}
-      <div className="text-center space-y-2">
-        <h4 className="text-xl font-bold text-white">{message.title}</h4>
-        <p className="text-gray-400">{message.message}</p>
+      <div className="text-center space-y-1">
+        <h4 className="text-lg font-bold text-[#0B1F3A] dark:text-[#F1F5F9]">{message.title}</h4>
+        <p className="text-xs text-[#64748B] dark:text-[#94A3B8] max-w-sm mx-auto leading-relaxed">{message.message || message.description}</p>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Synthetic Confidence */}
-        <div className="bg-dark-800 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm">Synthetic</span>
-            <span className="text-white font-bold text-xl">
-              {riskData.synthetic_confidence}%
+      <div className="grid grid-cols-2 gap-3">
+        {/* Synthetic Probability */}
+        <div className="bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-xl p-3.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#64748B] dark:text-[#94A3B8]">Synthetic Prob.</span>
+            <span className="font-mono font-bold text-base text-[#EF4444]">
+              {riskData.synthetic_confidence ?? riskData.risk_score ?? 0}%
             </span>
           </div>
-          <div className="w-full bg-dark-700 rounded-full h-2">
+          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div
-              className="bg-danger h-2 rounded-full transition-all duration-500"
-              style={{ width: `${riskData.synthetic_confidence}%` }}
+              className="bg-[#EF4444] h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(riskData.synthetic_confidence ?? riskData.risk_score ?? 0, 100)}%` }}
             />
           </div>
         </div>
 
         {/* Model Confidence */}
-        <div className="bg-dark-800 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm">Confidence</span>
-            <span className="text-white font-bold text-xl">
-              {riskData.model_confidence}%
+        <div className="bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-xl p-3.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#64748B] dark:text-[#94A3B8]">Confidence</span>
+            <span className="font-mono font-bold text-base text-[#123C69] dark:text-[#00C2FF]">
+              {riskData.model_confidence ?? 0}%
             </span>
           </div>
-          <div className="w-full bg-dark-700 rounded-full h-2">
+          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div
-              className="bg-primary-600 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${riskData.model_confidence}%` }}
+              className="bg-[#123C69] dark:bg-[#00C2FF] h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(riskData.model_confidence ?? 0, 100)}%` }}
             />
           </div>
         </div>
       </div>
 
       {/* Risk Score */}
-      <div className="bg-dark-800 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-gray-400">Overall Risk Score</span>
-          <span className="text-white font-bold text-2xl">
-            {riskData.risk_score}/100
+      <div className="bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-xl p-4">
+        <div className="flex items-baseline justify-between mb-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-[#F1F5F9]">Impersonation Score</span>
+          <span className="font-mono font-bold text-2xl text-[#0B1F3A] dark:text-[#F1F5F9]">
+            {riskData.risk_score}<span className="text-sm text-[#64748B] dark:text-[#94A3B8]">/100</span>
           </span>
         </div>
-        <div className="w-full bg-dark-700 rounded-full h-3">
+        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
           <div
-            className={`h-3 rounded-full transition-all duration-500 ${
-              riskData.risk_score >= 70
-                ? 'bg-danger'
-                : riskData.risk_score >= 40
-                ? 'bg-warning'
-                : 'bg-success'
+            className={`h-full rounded-full transition-all duration-500 ${
+              riskData.risk_score >= 81
+                ? 'bg-[#EF4444]'
+                : riskData.risk_score >= 61
+                ? 'bg-[#EF4444]/90'
+                : riskData.risk_score >= 31
+                ? 'bg-[#F59E0B]'
+                : 'bg-[#10B981]'
             }`}
-            style={{ width: `${riskData.risk_score}%` }}
+            style={{ width: `${Math.min(riskData.risk_score, 100)}%` }}
           />
         </div>
       </div>
 
       {/* Recommendation */}
       {riskData.recommendation && (
-        <div className="border-t border-dark-700 pt-4">
-          <p className="text-sm text-gray-400 mb-2">
-            <span className="font-semibold text-white">Recommendation:</span>
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+          <p className="text-[11px] font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider mb-1">
+            Recommendation:
           </p>
-          <p className="text-sm text-gray-300">{riskData.recommendation}</p>
+          <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium">{riskData.recommendation}</p>
         </div>
       )}
 
       {/* Optional Indicators */}
       {(riskData.acoustic_indicators || riskData.prosody_indicators) && (
-        <div className="border-t border-dark-700 pt-4 space-y-3">
-          <p className="text-sm font-semibold text-white">Technical Indicators:</p>
+        <div className="border-t border-[#F1F5F9] dark:border-[#1E3A5F] pt-3 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-[#F1F5F9]">Signal Metrics</p>
           
           {riskData.acoustic_indicators && (
             <div className="text-xs space-y-1">
-              <p className="text-gray-500 uppercase tracking-wide">Acoustic</p>
+              <p className="text-[#64748B] dark:text-[#94A3B8] text-[10px] font-bold uppercase tracking-wider">Acoustic Indicators</p>
               {Object.entries(riskData.acoustic_indicators).map(([key, value]) => (
-                <div key={key} className="flex justify-between">
-                  <span className="text-gray-400">{key.replace(/_/g, ' ')}</span>
-                  <span className="text-gray-300">
+                <div key={key} className="flex justify-between py-0.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-[#64748B] dark:text-[#94A3B8] capitalize">{key.replace(/_/g, ' ')}</span>
+                  <span className="font-mono font-semibold text-[#0B1F3A] dark:text-[#F1F5F9]">
                     {typeof value === 'number' ? value.toFixed(2) : value}
                   </span>
                 </div>
@@ -144,11 +152,11 @@ export default function RiskAnalysisCard({ riskData, isAnalyzing = false }) {
 
           {riskData.prosody_indicators && (
             <div className="text-xs space-y-1">
-              <p className="text-gray-500 uppercase tracking-wide">Prosody</p>
+              <p className="text-[#64748B] dark:text-[#94A3B8] text-[10px] font-bold uppercase tracking-wider">Prosodic Indicators</p>
               {Object.entries(riskData.prosody_indicators).map(([key, value]) => (
-                <div key={key} className="flex justify-between">
-                  <span className="text-gray-400">{key.replace(/_/g, ' ')}</span>
-                  <span className="text-gray-300">
+                <div key={key} className="flex justify-between py-0.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-[#64748B] dark:text-[#94A3B8] capitalize">{key.replace(/_/g, ' ')}</span>
+                  <span className="font-mono font-semibold text-[#0B1F3A] dark:text-[#F1F5F9]">
                     {typeof value === 'number' ? value.toFixed(2) : value}
                   </span>
                 </div>

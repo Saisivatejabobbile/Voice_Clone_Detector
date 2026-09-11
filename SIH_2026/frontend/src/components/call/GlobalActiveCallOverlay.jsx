@@ -1,15 +1,14 @@
 import { useLocation } from 'react-router-dom';
-import { useCall } from '../../context/CallContext';
 import { useSharedSimplePeerCall } from '../../hooks/useSharedSimplePeerCall.jsx';
 import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
 import WaveformAnimation from './WaveformAnimation';
 import { PhoneIcon, MicIcon } from '../../utils/icons';
 
+// Global Active Call Overlay - Modern Enterprise Call Capsule
 export default function GlobalActiveCallOverlay() {
   const location = useLocation();
   
-  // Use the SimplePeer hook which has the actual call state
   const {
     callState,
     isMuted,
@@ -18,11 +17,8 @@ export default function GlobalActiveCallOverlay() {
     formatDuration
   } = useSharedSimplePeerCall();
 
-  console.log('[GlobalOverlay] callState:', callState, 'pathname:', location.pathname);
-
-  // Don't show on ActiveCallPage - it has its own UI + RiskDashboard
+  // Don't show on ActiveCallPage (which has its own full UI + RiskDashboard)
   if (location.pathname.startsWith('/call/')) {
-    console.log('[GlobalOverlay] On ActiveCallPage, hiding overlay');
     return null;
   }
 
@@ -31,101 +27,88 @@ export default function GlobalActiveCallOverlay() {
     return null;
   }
 
-  console.log('[GlobalOverlay] Rendering overlay!');
-
   const handleEndCall = () => {
-    console.log('[GlobalOverlay] End call button clicked!');
     endCall();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-dark-950/95 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
+    <div className="fixed inset-0 z-50 bg-[#0B1F3A]/70 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl shadow-2xl p-8 text-[#0F172A] dark:text-[#F1F5F9] transition-colors">
         {/* Header - Timer and Status */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="text-gray-300 text-2xl font-mono font-bold">
+        <div className="flex items-center justify-between pb-4 border-b border-[#F1F5F9] dark:border-[#1E3A5F] mb-6">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-[#38BDF8]">
+              Active Encrypted Call
+            </span>
+          </div>
+          <div className="font-mono text-xl font-bold text-[#0B1F3A] dark:text-white bg-slate-100 dark:bg-[#12233C] border border-transparent dark:border-[#1E3A5F] px-3 py-1 rounded-lg">
             {formatDuration()}
           </div>
-          <Badge variant="success" size="sm">
-            <div className="w-2 h-2 bg-success-light rounded-full mr-2 animate-pulse" />
-            Connected
-          </Badge>
         </div>
 
-        {/* Main Card */}
-        <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-700 rounded-3xl p-12 shadow-2xl">
-          {/* Caller Info */}
-          <div className="flex flex-col items-center mb-8">
-            <Avatar 
-              name="Connected User"
-              size="3xl" 
-              status="in_call"
-              className="mb-4 ring-4 ring-primary-600/20"
+        {/* Caller Info */}
+        <div className="flex flex-col items-center mb-6">
+          <Avatar 
+            name="Verified Caller"
+            size="2xl" 
+            className="mb-3 ring-4 ring-[#0B1F3A]/10 dark:ring-[#00C2FF]/20 shadow-md"
+          />
+          
+          <h2 className="text-xl font-bold text-[#0B1F3A] dark:text-white">
+            Connected Participant
+          </h2>
+          
+          <p className="text-xs font-mono text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+            Real-Time Voice Integrity Active
+          </p>
+        </div>
+
+        {/* Waveform Visualization */}
+        <div className="mb-6">
+          <WaveformAnimation 
+            isActive={!isMuted} 
+            bars={32}
+            color="cyan"
+          />
+          <p className="text-center text-xs text-[#64748B] dark:text-[#94A3B8] mt-2 font-medium">
+            {isMuted ? 'Microphone muted locally' : 'Audio analyzed transients in real-time'}
+          </p>
+        </div>
+
+        {/* Call Controls */}
+        <div className="flex items-center justify-center gap-6">
+          {/* Mute Button */}
+          <button
+            onClick={toggleMute}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-sm ${
+              isMuted 
+                ? 'bg-[#EF4444] text-white' 
+                : 'bg-white dark:bg-[#12233C] border border-[#CBD5E1] dark:border-[#1E3A5F] text-[#0B1F3A] dark:text-white hover:bg-slate-50 dark:hover:bg-[#1E3A5F]'
+            }`}
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            <MicIcon 
+              className={`w-6 h-6 ${isMuted ? 'text-white' : 'text-[#0B1F3A] dark:text-white'}`}
+              muted={isMuted}
             />
-            
-            <h2 className="text-4xl font-bold text-white mb-2">
-              Connected User
-            </h2>
-            
-            <p className="text-gray-400 text-lg">
-              user@example.com
-            </p>
-          </div>
+          </button>
 
-          {/* Waveform Visualization */}
-          <div className="mb-8">
-            <WaveformAnimation 
-              isActive={!isMuted} 
-              bars={35}
-              color="primary"
-            />
-            <p className="text-center text-gray-400 text-base mt-4">
-              {isMuted ? 'Microphone muted' : 'Call in progress...'}
-            </p>
-          </div>
+          {/* End Call Button */}
+          <button
+            onClick={handleEndCall}
+            className="w-16 h-16 rounded-full bg-[#EF4444] hover:bg-[#DC2626] text-white flex items-center justify-center transition-all shadow-md active:scale-95"
+            title="End Call"
+          >
+            <PhoneIcon className="w-7 h-7 text-white transform rotate-135" />
+          </button>
+        </div>
 
-          {/* Call Controls */}
-          <div className="flex items-center justify-center gap-8">
-            {/* Mute Button */}
-            <button
-              onClick={toggleMute}
-              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
-                isMuted 
-                  ? 'bg-warning-dark hover:bg-warning-dark/80' 
-                  : 'bg-dark-700 hover:bg-dark-600'
-              }`}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              <MicIcon 
-                className={`w-8 h-8 ${isMuted ? 'text-warning-light' : 'text-white'}`}
-                muted={isMuted}
-              />
-            </button>
-
-            {/* End Call Button */}
-            <button
-              onClick={handleEndCall}
-              className="w-20 h-20 rounded-full bg-danger-dark hover:bg-danger-dark/80 flex items-center justify-center transition-all"
-              title="End Call"
-            >
-              <PhoneIcon className="w-8 h-8 text-white transform rotate-135" />
-            </button>
-
-            {/* Speaker Button (placeholder for future) */}
-            <button
-              className="w-20 h-20 rounded-full bg-dark-700 hover:bg-dark-600 flex items-center justify-center transition-all"
-              title="Speaker"
-            >
-              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.414A2 2 0 014 14v-4a2 2 0 011.586-1.414L8 7.172a1 1 0 01.707-.293V7a1 1 0 012 0v0a1 1 0 01-.707.293L7.586 8.414v7.172l2.414 1.414A1 1 0 0111 17v0a1 1 0 01-2 0v-.121a1 1 0 01-.707-.293l-2.414-1.414A1.998 1.998 0 015.586 15.414z" /></svg>
-            </button>
-          </div>
-
-          {/* Call Info */}
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500">
-              Voice call � End-to-end encrypted
-            </p>
-          </div>
+        {/* Privacy Note */}
+        <div className="mt-6 pt-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F] text-center">
+          <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-mono">
+            Zero Audio Retention • Transient Memory Only
+          </p>
         </div>
       </div>
     </div>

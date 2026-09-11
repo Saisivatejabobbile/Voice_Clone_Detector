@@ -49,25 +49,35 @@ export const RISK_LEVELS = {
   HIGH: 'HIGH',
 };
 
-// Risk Level Colors
+// Risk Level Colors - Cyber Trust Semantic System
 export const RISK_COLORS = {
   LOW: {
-    bg: 'bg-success-dark/20',
-    text: 'text-success-light',
-    border: 'border-success-light',
-    icon: 'text-success-light',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+    icon: 'text-emerald-600',
+    accent: '#10B981',
   },
   MEDIUM: {
-    bg: 'bg-warning-dark/20',
-    text: 'text-warning-light',
-    border: 'border-warning-light',
-    icon: 'text-warning-light',
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    border: 'border-amber-200',
+    icon: 'text-amber-600',
+    accent: '#F59E0B',
   },
   HIGH: {
-    bg: 'bg-danger-dark/20',
-    text: 'text-danger-light',
-    border: 'border-danger-light',
-    icon: 'text-danger-light',
+    bg: 'bg-rose-50',
+    text: 'text-rose-700',
+    border: 'border-rose-200',
+    icon: 'text-rose-600',
+    accent: '#EF4444',
+  },
+  CRITICAL: {
+    bg: 'bg-red-100',
+    text: 'text-red-800',
+    border: 'border-red-300',
+    icon: 'text-red-700',
+    accent: '#EF4444',
   },
 };
 

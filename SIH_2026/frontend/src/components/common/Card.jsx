@@ -1,4 +1,4 @@
-// Reusable Card Component
+// Reusable Enterprise Card Component
 export default function Card({ 
   children, 
   hover = false, 
@@ -6,8 +6,10 @@ export default function Card({
   onClick,
   ...props 
 }) {
-  const baseStyles = 'bg-dark-900 border border-dark-800 rounded-lg shadow-lg';
-  const hoverStyles = hover ? 'transition-all duration-200 hover:shadow-glow hover:border-primary-600 cursor-pointer' : '';
+  const baseStyles = 'bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] text-[#0F172A] dark:text-[#F1F5F9] rounded-xl shadow-sm overflow-hidden transition-colors duration-200';
+  const hoverStyles = hover 
+    ? 'transition-all duration-200 hover:shadow-md hover:border-[#CBD5E1] dark:hover:border-[#00C2FF]/60 cursor-pointer' 
+    : '';
   
   return (
     <div 
@@ -23,7 +25,7 @@ export default function Card({
 // Card Header
 export function CardHeader({ children, className = '' }) {
   return (
-    <div className={`px-6 py-4 border-b border-dark-800 ${className}`}>
+    <div className={`px-6 py-4 border-b border-[#F1F5F9] dark:border-[#1E3A5F] bg-white dark:bg-[#0F1D32] text-[#0F172A] dark:text-[#F1F5F9] ${className}`}>
       {children}
     </div>
   );
@@ -32,7 +34,7 @@ export function CardHeader({ children, className = '' }) {
 // Card Body
 export function CardBody({ children, className = '' }) {
   return (
-    <div className={`px-6 py-4 ${className}`}>
+    <div className={`px-6 py-5 text-[#0F172A] dark:text-[#F1F5F9] ${className}`}>
       {children}
     </div>
   );
@@ -41,7 +43,7 @@ export function CardBody({ children, className = '' }) {
 // Card Footer
 export function CardFooter({ children, className = '' }) {
   return (
-    <div className={`px-6 py-4 border-t border-dark-800 ${className}`}>
+    <div className={`px-6 py-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F] bg-slate-50/50 dark:bg-[#0B1524]/60 ${className}`}>
       {children}
     </div>
   );

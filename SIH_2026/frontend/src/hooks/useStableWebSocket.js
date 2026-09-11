@@ -1,65 +1,111 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 // Singleton WebSocket instance (survives re-renders)
 let globalWS = null;
 let globalListeners = new Map();
+let currentToken = null;
 
 export function useStableWebSocket(url, token) {
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(
+    () => globalWS?.readyState === WebSocket.OPEN
+  );
   const listenersRef = useRef(new Map());
+  const reconnectTimeoutRef = useRef(null);
 
-  useEffect(() => {
+  const connect = useCallback(() => {
     if (!url || !token) return;
 
-    // Connect only if not already connected
-    if (!globalWS || globalWS.readyState === WebSocket.CLOSED) {
-      console.log('Creating NEW WebSocket connection');
-      const wsUrl = `${url}?token=${token}`;
-      globalWS = new WebSocket(wsUrl);
-
-      globalWS.onopen = () => {
-        console.log('✅ WebSocket CONNECTED');
-        setIsConnected(true);
-      };
-
-      globalWS.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        console.log('📨 Received:', message.type);
-        
-        // Call all registered listeners for this message type
-        const listeners = globalListeners.get(message.type) || [];
-        listeners.forEach(fn => fn(message));
-      };
-
-      globalWS.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
-      };
-
-      globalWS.onclose = () => {
-        console.log('🔌 WebSocket closed');
-        setIsConnected(false);
+    // If existing connection has different token or is closed, clean up
+    if (globalWS) {
+      if (currentToken !== token || globalWS.readyState === WebSocket.CLOSED || globalWS.readyState === WebSocket.CLOSING) {
+        try {
+          globalWS.close();
+        } catch (e) {
+          // Ignored
+        }
         globalWS = null;
-      };
-    } else if (globalWS.readyState === WebSocket.OPEN) {
-      setIsConnected(true);
+      } else if (globalWS.readyState === WebSocket.OPEN) {
+        setIsConnected(true);
+        return;
+      }
     }
 
-    // Cleanup: DON'T close WebSocket on unmount (singleton pattern)
-    return () => {
-      console.log('Component unmounting - WebSocket stays open');
-    };
+    if (!globalWS) {
+      console.log('Creating WebSocket connection with token');
+      currentToken = token;
+      const wsUrl = `${url}?token=${encodeURIComponent(token)}`;
+      
+      try {
+        const ws = new WebSocket(wsUrl);
+        globalWS = ws;
+
+        ws.onopen = () => {
+          console.log('✅ WebSocket CONNECTED');
+          setIsConnected(true);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('📨 Received signaling message:', message.type, message);
+            
+            // Call all registered listeners for this message type
+            const listeners = globalListeners.get(message.type) || [];
+            listeners.forEach(fn => fn(message));
+          } catch (e) {
+            console.error('Error parsing WebSocket message:', e);
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('❌ WebSocket error:', error);
+        };
+
+        ws.onclose = (event) => {
+          console.log('🔌 WebSocket closed:', event.code, event.reason);
+          setIsConnected(false);
+          globalWS = null;
+
+          // Auto-reconnect if token is still present and valid
+          if (token && !reconnectTimeoutRef.current) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+              reconnectTimeoutRef.current = null;
+              if (token) {
+                console.log('Attempting WebSocket reconnect...');
+                connect();
+              }
+            }, 2500);
+          }
+        };
+      } catch (err) {
+        console.error('Failed to create WebSocket:', err);
+        setIsConnected(false);
+        globalWS = null;
+      }
+    }
   }, [url, token]);
 
-  const sendMessage = (message) => {
+  useEffect(() => {
+    connect();
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+  }, [connect]);
+
+  const sendMessage = useCallback((message) => {
     if (globalWS && globalWS.readyState === WebSocket.OPEN) {
       globalWS.send(JSON.stringify(message));
       console.log('📤 Sent:', message.type);
     } else {
-      console.error('Cannot send - WebSocket not connected');
+      console.warn('Cannot send - WebSocket not connected (readyState: ' + globalWS?.readyState + ')');
     }
-  };
+  }, []);
 
-  const onMessage = (type, handler) => {
+  const onMessage = useCallback((type, handler) => {
     if (!globalListeners.has(type)) {
       globalListeners.set(type, []);
     }
@@ -74,7 +120,7 @@ export function useStableWebSocket(url, token) {
         listeners.splice(index, 1);
       }
     };
-  };
+  }, []);
 
   return { isConnected, sendMessage, onMessage };
 }

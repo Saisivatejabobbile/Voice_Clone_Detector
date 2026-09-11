@@ -14,6 +14,9 @@ temp/
 uploads/
 voiceshield.db
 *.sqlite3
+*.db
+.env
+.env.*
 
 # Models / Large checkpoints (uncomment if models are too big for git)
 # models/

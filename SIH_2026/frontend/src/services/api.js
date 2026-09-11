@@ -1,4 +1,4 @@
-﻿// API Service Layer for VoiceShield Backend Integration
+// API Service Layer for VoiceShield Backend Integration
 // This service handles all HTTP requests to the backend
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -6,7 +6,7 @@ const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
 
 // Helper function to get auth token
 const getAuthToken = () => {
-  return localStorage.getItem('access_token');
+  return sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
 };
 
 // Helper function to create headers

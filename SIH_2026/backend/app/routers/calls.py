@@ -1,4 +1,4 @@
-﻿"""
+"""
 Calls Router
 Handles call history and session information
 """
@@ -238,3 +238,62 @@ async def delete_call_history(
         "message": "Call history deleted",
         "call_id": call_id
     }
+
+
+@router.get("/{call_id}/audit-trail")
+async def get_call_audit_trail(
+    call_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retrieve confirmed blockchain audit trail blocks for a call session.
+    Provides tamper-evident proof-of-authenticity.
+    """
+    from app.services.blockchain_audit_service import get_blockchain_audit_service
+    bc_service = get_blockchain_audit_service()
+    trail = bc_service.get_audit_trail_for_call(call_id)
+    
+    return {
+        "call_id": call_id,
+        "blocks_count": len(trail),
+        "audit_trail": trail
+    }
+
+
+@router.get("/{call_id}/verify-audit")
+async def verify_call_audit(
+    call_id: str,
+    window_id: int = 999,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Cryptographically verify call integrity against the on-chain ledger.
+    """
+    from app.services.blockchain_audit_service import get_blockchain_audit_service
+    bc_service = get_blockchain_audit_service()
+    trail = bc_service.get_audit_trail_for_call(call_id)
+    
+    if not trail:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No blockchain audit records found for this call"
+        )
+    
+    target_block = next((b for b in trail if b["window_id"] == window_id), trail[-1])
+    is_valid, msg = bc_service.verify_ledger_integrity()
+    
+    return {
+        "call_id": call_id,
+        "window_id": target_block["window_id"],
+        "is_tamper_evident": True,
+        "chain_valid": is_valid,
+        "block_number": target_block["index"],
+        "tx_hash": target_block["tx_hash"],
+        "audit_hash": target_block["deterministic_audit_hash"],
+        "mapped_status": target_block["mapped_status"],
+        "timestamp": target_block["timestamp"],
+        "details": msg
+    }
+

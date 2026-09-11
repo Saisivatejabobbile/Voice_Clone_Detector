@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
-import { CallProvider, useCall } from './context/CallContext';
-import { WebSocketProvider } from './context/WebSocketContext';
 import { ROUTES } from './constants';
 
 // Pages
@@ -22,15 +21,15 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 // Call Components
 import IncomingCallModal from './components/call/IncomingCallModal';
 import GlobalActiveCallOverlay from './components/call/GlobalActiveCallOverlay';
-import { SimplePeerCallProvider } from './hooks/useSharedSimplePeerCall.jsx';
+import { SimplePeerCallProvider, useSharedSimplePeerCall } from './hooks/useSharedSimplePeerCall.jsx';
 
-// Global Incoming Call Modal Wrapper
+// Global Incoming Call Modal Wrapper - Renders on all pages
 function GlobalCallModal() {
-  const { incomingCall, acceptCall, rejectCall } = useCall();
+  const { incomingCall, acceptCall, rejectCall } = useSharedSimplePeerCall();
   
   return (
     <IncomingCallModal
-      caller={incomingCall?.contact}
+      caller={incomingCall}
       onAccept={acceptCall}
       onReject={rejectCall}
       isOpen={!!incomingCall}
@@ -42,13 +41,10 @@ function GlobalCallModal() {
 function AppContent() {
   return (
     <SimplePeerCallProvider>
-      <CallProvider>
-        <WebSocketProvider>
-          <GlobalCallModal />
-       <GlobalActiveCallOverlay /> 
+      <GlobalCallModal />
+      <GlobalActiveCallOverlay /> 
 
-
-          <Routes>
+      <Routes>
           <Route path={ROUTES.LANDING} element={<LandingPage />} />
           <Route path={ROUTES.SIGN_UP} element={<SignUpPage />} />
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
@@ -114,19 +110,19 @@ function AppContent() {
 
           <Route path="*" element={<Navigate to={ROUTES.LANDING} replace />} />
         </Routes>
-        </WebSocketProvider>
-      </CallProvider>
     </SimplePeerCallProvider>
   );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

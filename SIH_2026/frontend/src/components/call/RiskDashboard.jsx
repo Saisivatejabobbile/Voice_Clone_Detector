@@ -2,50 +2,67 @@ import { useState, useEffect } from 'react';
 import { getAnalysisWebSocket } from '../../services/websocket';
 
 /**
- * RiskDashboard Component
+ * RiskDashboard Component - Enterprise Real-Time AI Impersonation Risk & Blockchain Audit Monitor
  * 
- * Displays real-time voice authenticity risk indicators during calls.
- * Subscribes to risk_update messages from the analysis WebSocket.
- * 
- * Task 8.1: Subscribe to risk_update messages and display live risk updates
- * Requirements: 11.5, 14.1, 14.2, 14.3, 15.4, 15.5
- * 
- * @param {string} callId - Unique call identifier
- * @param {object} callerInfo - Caller information (name, phoneNumber, avatar)
- * @param {boolean} isAnalyzing - Whether audio analysis is active
+ * Implements SIH26104 Requirements:
+ * - 4 Application-Level Voice Classifications:
+ *   1. REAL (Verified authentic human speech)
+ *   2. CLONED VOICE (Synthetic/cloned voice impersonation threat)
+ *   3. UNCERTAIN (Ambiguous speech acoustic patterns)
+ *   4. INSUFFICIENT AUDIO (Accumulating target-speaker speech before analysis)
+ * - Tamper-Evident Blockchain Audit Proof (SHA-256 canonical hash & block ID)
+ * - Multi-Language Detection Telemetry (Hindi, Telugu, Code-mixed)
+ * - Usable Target Speech Telemetry
  */
-export default function RiskDashboard({ callId, callerInfo, isAnalyzing }) {
-  // State for risk data (Requirement 14.1, 14.2, 14.3)
+export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing }) {
+  const [voiceStatus, setVoiceStatus] = useState('INSUFFICIENT AUDIO');
   const [riskLevel, setRiskLevel] = useState('LOW');
   const [riskScore, setRiskScore] = useState(0);
   const [confidence, setConfidence] = useState(0);
-  const [recommendation, setRecommendation] = useState('Waiting for analysis...');
+  const [recommendation, setRecommendation] = useState('Accumulating target speech for verification...');
+  const [blockchainAudit, setBlockchainAudit] = useState(null);
+  const [detectedLanguage, setDetectedLanguage] = useState(null);
+  const [targetSpeechAnalyzed, setTargetSpeechAnalyzed] = useState(0);
+  const [windowsAnalyzed, setWindowsAnalyzed] = useState(0);
   const [indicators, setIndicators] = useState(null);
   const [riskHistory, setRiskHistory] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  // Subscribe to risk_update messages (Task 8.1, Requirement 15.4, 15.5)
   useEffect(() => {
     if (!callId) return;
 
     const analysisWS = getAnalysisWebSocket();
 
-    // Handler for risk_update messages
     const handleRiskUpdate = (message) => {
-      // Only process updates for this call (Requirement 14.1)
       if (message.call_id !== callId && message.callId !== callId) {
         return;
       }
 
-      console.log('Risk update received:', message);
+      console.log('Risk/Blockchain telemetry received:', message);
 
-      // Update state with new risk data (Requirement 14.2, 14.3)
-      setRiskLevel(message.risk_level || message.riskLevel || 'LOW');
-      setRiskScore(message.risk_score || message.riskScore || 0);
-      setConfidence(message.model_confidence || message.confidence || 0);
-      setRecommendation(message.recommendation || 'Continue monitoring...');
-      
-      // Update indicators if available (Requirement 14.4, 14.5)
+      const score = message.risk_score ?? message.riskScore ?? 0;
+      let level = message.risk_level ?? message.riskLevel ?? 'LOW';
+      const status = message.voice_status || (score >= 60 ? 'CLONED VOICE' : score > 0 ? 'REAL' : 'INSUFFICIENT AUDIO');
+
+      setVoiceStatus(status);
+      setRiskLevel(level);
+      setRiskScore(score);
+      setConfidence(message.model_confidence ?? message.confidence ?? 0);
+      setRecommendation(message.recommendation || 'Active live monitoring...');
+
+      if (message.blockchain_audit) {
+        setBlockchainAudit(message.blockchain_audit);
+      }
+      if (message.detected_language) {
+        setDetectedLanguage(message.detected_language);
+      }
+      if (message.target_speech_analyzed !== undefined) {
+        setTargetSpeechAnalyzed(message.target_speech_analyzed);
+      }
+      if (message.windows_analyzed !== undefined) {
+        setWindowsAnalyzed(message.windows_analyzed);
+      }
+
       if (message.acoustic_indicators || message.prosody_indicators) {
         setIndicators({
           acoustic: message.acoustic_indicators,
@@ -53,163 +70,249 @@ export default function RiskDashboard({ callId, callerInfo, isAnalyzing }) {
         });
       }
 
-      // Append to risk history for timeline tracking (Requirement 14.8)
       const timestamp = message.timestamp || new Date().toISOString();
       setRiskHistory(prev => [
         ...prev,
         {
-          riskLevel: message.risk_level || message.riskLevel || 'LOW',
-          riskScore: message.risk_score || message.riskScore || 0,
+          voiceStatus: status,
+          riskLevel: level,
+          riskScore: score,
           timestamp
         }
-      ].slice(-20)); // Keep last 20 updates
+      ].slice(-24));
 
       setLastUpdate(timestamp);
     };
 
-    // Register message handler
     analysisWS.on('risk_update', handleRiskUpdate);
+    analysisWS.on('final_call_verdict', handleRiskUpdate);
 
-    // Cleanup on unmount
     return () => {
       analysisWS.off('risk_update', handleRiskUpdate);
+      analysisWS.off('final_call_verdict', handleRiskUpdate);
     };
   }, [callId]);
 
-  // Determine risk color based on level (Requirement 14.1)
-  const getRiskColor = () => {
-    switch (riskLevel) {
-      case 'HIGH':
+  // Semantic styling configuration based strictly on the 4 application states
+  const getStatusConfig = () => {
+    switch (voiceStatus) {
+      case 'CLONED VOICE':
         return {
-          bg: 'bg-danger-dark/20',
-          border: 'border-danger-dark',
-          text: 'text-danger-light',
-          icon: '🔴',
-          gradient: 'from-danger-dark to-danger-dark/50'
+          title: 'CLONED VOICE',
+          subLabel: 'CRITICAL SPOOF ATTACK DETECTED',
+          badgeBg: 'bg-rose-100 dark:bg-red-950/80 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700',
+          scoreColor: 'text-[#EF4444]',
+          barColor: 'bg-[#EF4444]',
+          bannerBg: 'bg-rose-50 dark:bg-red-950/50 border-rose-200 dark:border-red-900/80 text-rose-900 dark:text-red-200',
+          indicatorColor: '#EF4444',
+          icon: (
+            <svg className="w-5 h-5 text-[#EF4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          )
         };
-      case 'MEDIUM':
+      case 'UNCERTAIN':
         return {
-          bg: 'bg-warning-dark/20',
-          border: 'border-warning-dark',
-          text: 'text-warning-light',
-          icon: '🟡',
-          gradient: 'from-warning-dark to-warning-dark/50'
+          title: 'UNCERTAIN',
+          subLabel: 'AMBIGUOUS ACOUSTIC PATTERN',
+          badgeBg: 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+          scoreColor: 'text-[#F59E0B]',
+          barColor: 'bg-[#F59E0B]',
+          bannerBg: 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-900/80 text-amber-900 dark:text-amber-200',
+          indicatorColor: '#F59E0B',
+          icon: (
+            <svg className="w-5 h-5 text-[#F59E0B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )
         };
-      case 'LOW':
+      case 'REAL':
+        return {
+          title: 'REAL',
+          subLabel: 'VERIFIED AUTHENTIC HUMAN SPEECH',
+          badgeBg: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
+          scoreColor: 'text-[#10B981]',
+          barColor: 'bg-[#10B981]',
+          bannerBg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900/80 text-emerald-900 dark:text-emerald-200',
+          indicatorColor: '#10B981',
+          icon: (
+            <svg className="w-5 h-5 text-[#10B981]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          )
+        };
+      case 'INSUFFICIENT AUDIO':
       default:
         return {
-          bg: 'bg-success-dark/20',
-          border: 'border-success-dark',
-          text: 'text-success-light',
-          icon: '🟢',
-          gradient: 'from-success-dark to-success-dark/50'
+          title: 'INSUFFICIENT AUDIO',
+          subLabel: 'ACCUMULATING TARGET SPEECH SAMPLES',
+          badgeBg: 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-200 border-sky-300 dark:border-sky-700',
+          scoreColor: 'text-[#008BB8] dark:text-[#00C2FF]',
+          barColor: 'bg-[#00C2FF]',
+          bannerBg: 'bg-sky-50 dark:bg-sky-950/50 border-sky-200 dark:border-sky-900/80 text-sky-900 dark:text-sky-200',
+          indicatorColor: '#00C2FF',
+          icon: (
+            <svg className="w-5 h-5 text-[#00C2FF] animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          )
         };
     }
   };
 
-  const riskColor = getRiskColor();
+  const config = getStatusConfig();
+  const minRequiredSpeech = 20.0;
+  const speechProgress = Math.min(100, Math.round((targetSpeechAnalyzed / minRequiredSpeech) * 100));
 
   return (
-    <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-700 rounded-2xl p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-white text-2xl font-bold mb-2">Risk Dashboard</h2>
-        <p className="text-gray-400 text-sm">
-          {callerInfo.name} • Real-time analysis
-        </p>
-      </div>
-
-      {/* Primary Risk Indicator (Requirement 14.1) */}
-      <div className={`${riskColor.bg} border ${riskColor.border} rounded-xl p-6 mb-6 transition-all duration-500`}>
-        <div className="text-5xl mb-3 text-center animate-pulse-slow">{riskColor.icon}</div>
-        <div className={`${riskColor.text} text-2xl font-bold text-center mb-2`}>
-          {riskLevel} RISK
-        </div>
-        <div className="text-gray-300 text-center text-sm">
-          Score: {riskScore}/100
-        </div>
-      </div>
-
-      {/* Risk Score Progress Bar (Requirement 14.2) */}
-      <div className="mb-6">
-        <div className="flex justify-between text-sm text-gray-400 mb-2">
-          <span>Risk Score</span>
-          <span>{riskScore}%</span>
-        </div>
-        <div className="w-full bg-dark-700 rounded-full h-3 overflow-hidden">
-          <div
-            className={`h-full bg-gradient-to-r ${riskColor.gradient} transition-all duration-500`}
-            style={{ width: `${Math.min(riskScore, 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Confidence Level (Requirement 14.2) */}
-      <div className="mb-6">
-        <div className="flex justify-between text-sm text-gray-400 mb-2">
-          <span>Model Confidence</span>
-          <span>{confidence}%</span>
-        </div>
-        <div className="w-full bg-dark-700 rounded-full h-3 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-500"
-            style={{ width: `${Math.min(confidence, 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Recommendation Text (Requirement 14.3) */}
-      <div className="bg-dark-800 rounded-lg p-4 mb-6">
-        <div className="text-gray-300 text-sm font-semibold mb-2">
-          💡 Recommendation
-        </div>
-        <p className="text-gray-400 text-sm leading-relaxed">
-          {recommendation}
-        </p>
-      </div>
-
-      {/* Status Information */}
-      <div className="space-y-3">
+    <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-2xl p-6 shadow-sm text-[#0F172A] dark:text-[#F1F5F9] transition-colors">
+      
+      {/* Header Bar */}
+      <div className="flex items-start justify-between pb-4 border-b border-[#F1F5F9] dark:border-[#1E3A5F] mb-6">
         <div>
-          <div className="text-gray-500 text-xs mb-1">Call ID</div>
-          <div className="text-white font-mono text-xs truncate">{callId}</div>
-        </div>
-
-        <div>
-          <div className="text-gray-500 text-xs mb-1">Analysis Status</div>
           <div className="flex items-center gap-2">
-            {isAnalyzing && (
-              <div className="w-2 h-2 bg-success-light rounded-full animate-pulse" />
-            )}
-            <span className={isAnalyzing ? 'text-success-light' : 'text-gray-400'}>
-              {isAnalyzing ? 'Active' : 'Idle'}
+            <span className="w-2 h-2 rounded-full bg-[#00C2FF] animate-pulse" />
+            <h3 className="text-base font-bold text-[#0B1F3A] dark:text-white uppercase tracking-wider">
+              Live Voice Integrity & Audit
+            </h3>
+          </div>
+          <p className="text-xs text-[#64748B] dark:text-[#94A3B8] mt-0.5">
+            Target: <span className="font-semibold text-[#0B1F3A] dark:text-[#00C2FF]">{callerInfo.name || callerInfo.caller_name || 'Active Remote Caller'}</span> • VAD Isolated
+          </p>
+        </div>
+
+        <span className={`px-3 py-1.5 text-xs font-bold tracking-wider rounded-full border flex items-center gap-1.5 shadow-2xs ${config.badgeBg}`}>
+          {config.icon}
+          {config.title}
+        </span>
+      </div>
+
+      {/* Primary Voice Classification Banner */}
+      <div className="bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-xl p-5 text-center mb-5 transition-colors">
+        <div className="text-[11px] font-bold uppercase tracking-widest text-[#64748B] dark:text-[#94A3B8] mb-1">
+          Primary Voice Classification
+        </div>
+
+        <div className="flex items-baseline justify-center gap-2 my-1">
+          <span className={`font-mono text-4xl sm:text-5xl font-extrabold tracking-tight ${config.scoreColor}`}>
+            {config.title}
+          </span>
+        </div>
+
+        <div className="text-xs font-medium text-[#64748B] dark:text-[#94A3B8] tracking-wide mt-1 uppercase font-mono">
+          {config.subLabel}
+        </div>
+
+        {/* Progress Track */}
+        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 mt-4 overflow-hidden">
+          <div
+            className={`h-full ${config.barColor} transition-all duration-500 rounded-full`}
+            style={{ width: `${voiceStatus === 'INSUFFICIENT AUDIO' ? speechProgress : Math.min(riskScore, 100)}%` }}
+          />
+        </div>
+        
+        {voiceStatus === 'INSUFFICIENT AUDIO' && (
+          <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-2 font-mono">
+            Accumulated {targetSpeechAnalyzed.toFixed(1)}s / {minRequiredSpeech}s usable speech required for ML model slice
+          </p>
+        )}
+      </div>
+
+      {/* Telemetry Grid: Confidence, Language, Windows */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="bg-white dark:bg-[#0B1524] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-3 text-center shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] dark:text-[#94A3B8] mb-1">
+            Model Confidence
+          </div>
+          <div className="font-mono text-lg font-bold text-[#0B1F3A] dark:text-white">
+            {confidence > 0 ? `${confidence}%` : '—'}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0B1524] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-3 text-center shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] dark:text-[#94A3B8] mb-1">
+            Language Model
+          </div>
+          <div className="font-mono text-xs font-bold text-[#008BB8] dark:text-[#00C2FF] truncate mt-1">
+            {detectedLanguage || 'Detecting...'}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#0B1524] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-3 text-center shadow-2xs">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] dark:text-[#94A3B8] mb-1">
+            Windows Sliced
+          </div>
+          <div className="font-mono text-lg font-bold text-[#0B1F3A] dark:text-white">
+            {windowsAnalyzed}
+          </div>
+        </div>
+      </div>
+
+      {/* Tamper-Evident Blockchain Audit Proof Box */}
+      <div className="bg-slate-900 border border-[#1E3A5F] rounded-xl p-4 mb-5 text-slate-100 shadow-md">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#00C2FF]">
+              Blockchain Audit Ledger
+            </span>
+          </div>
+          <span className="text-[10px] font-mono bg-[#1E3A5F] text-[#38BDF8] px-2 py-0.5 rounded-full">
+            {blockchainAudit ? `Block #${blockchainAudit.block_number}` : 'Ledger Synced'}
+          </span>
+        </div>
+
+        <div className="space-y-1.5 text-xs font-mono">
+          <div className="flex justify-between items-center text-slate-400">
+            <span>TX Hash:</span>
+            <span className="text-white truncate max-w-[200px]" title={blockchainAudit?.tx_hash || 'Pending'}>
+              {blockchainAudit?.tx_hash ? `${blockchainAudit.tx_hash.slice(0, 18)}...` : 'Pending On-Chain Commit...'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-slate-400">
+            <span>Audit Proof:</span>
+            <span className="text-[#10B981] truncate max-w-[200px]" title={blockchainAudit?.audit_hash || 'SHA-256'}>
+              {blockchainAudit?.audit_hash ? `SHA256:${blockchainAudit.audit_hash.slice(0, 14)}...` : 'Deterministic Hashing'}
             </span>
           </div>
         </div>
 
-        {lastUpdate && (
-          <div>
-            <div className="text-gray-500 text-xs mb-1">Last Update</div>
-            <div className="text-gray-400 text-xs">
-              {new Date(lastUpdate).toLocaleTimeString()}
-            </div>
-          </div>
-        )}
+        <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+          <span className="text-emerald-400 font-semibold flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Tamper-Evident Off-Chain/On-Chain Linked
+          </span>
+          <span>Zero Media Retention</span>
+        </div>
       </div>
 
-      {/* Acoustic Indicators (Optional - Requirement 14.4) */}
+      {/* Security Recommendation Banner */}
+      <div className={`rounded-xl p-4 mb-5 border ${config.bannerBg} transition-colors`}>
+        <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider mb-1">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Security Recommendation
+        </div>
+        <p className="text-xs sm:text-sm font-medium leading-relaxed">
+          {recommendation}
+        </p>
+      </div>
+
+      {/* Acoustic & Prosody Breakdown (Forensics) */}
       {indicators?.acoustic && (
-        <div className="mt-6 pt-6 border-t border-dark-700">
-          <div className="text-gray-300 text-sm font-semibold mb-3">
-            🎵 Acoustic Analysis
-          </div>
-          <div className="space-y-2 text-xs">
+        <div className="mb-4 pt-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F]">
+          <h4 className="text-xs font-bold text-[#0B1F3A] dark:text-white uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-[#00C2FF] rounded-full" />
+            Acoustic Signal Breakdown
+          </h4>
+          <div className="grid grid-cols-2 gap-2 text-xs">
             {Object.entries(indicators.acoustic).map(([key, value]) => (
-              <div key={key} className="flex justify-between">
-                <span className="text-gray-400 capitalize">
-                  {key.replace(/_/g, ' ')}
-                </span>
-                <span className="text-gray-300">
+              <div key={key} className="bg-slate-50 dark:bg-[#0B1524] border border-slate-100 dark:border-[#1E3A5F] rounded-lg p-2 flex justify-between items-center">
+                <span className="text-[#64748B] dark:text-[#94A3B8] capitalize truncate mr-1">{key.replace(/_/g, ' ')}</span>
+                <span className="font-mono font-semibold text-[#0B1F3A] dark:text-white">
                   {typeof value === 'number' ? value.toFixed(2) : value}
                 </span>
               </div>
@@ -218,62 +321,46 @@ export default function RiskDashboard({ callId, callerInfo, isAnalyzing }) {
         </div>
       )}
 
-      {/* Prosody Indicators (Optional - Requirement 14.5) */}
-      {indicators?.prosody && (
-        <div className="mt-4 pt-4 border-t border-dark-700">
-          <div className="text-gray-300 text-sm font-semibold mb-3">
-            🎤 Prosody Analysis
-          </div>
-          <div className="space-y-2 text-xs">
-            {Object.entries(indicators.prosody).map(([key, value]) => (
-              <div key={key} className="flex justify-between">
-                <span className="text-gray-400 capitalize">
-                  {key.replace(/_/g, ' ')}
-                </span>
-                <span className="text-gray-300">
-                  {typeof value === 'number' ? value.toFixed(2) : value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Risk History Timeline (Requirement 14.8) */}
+      {/* Real-time Risk History Timeline */}
       {riskHistory.length > 0 && (
-        <div className="mt-6 pt-6 border-t border-dark-700">
-          <div className="text-gray-300 text-sm font-semibold mb-3">
-            📊 Risk Timeline
+        <div className="mt-4 pt-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F]">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] dark:text-white">
+              Sliding Window Timeline ({riskHistory.length} Telemetries)
+            </span>
+            <span className="text-[11px] font-mono text-[#64748B] dark:text-[#94A3B8]">
+              {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : ''}
+            </span>
           </div>
-          <div className="flex items-end gap-1 h-16">
+          
+          <div className="flex items-end gap-1 h-12 bg-slate-50 dark:bg-[#0B1524] border border-slate-200 dark:border-[#1E3A5F] rounded-lg p-1.5 transition-colors">
             {riskHistory.map((entry, index) => {
-              const height = (entry.riskScore / 100) * 100;
-              const color = entry.riskLevel === 'HIGH' ? 'bg-danger-dark' :
-                          entry.riskLevel === 'MEDIUM' ? 'bg-warning-dark' :
-                          'bg-success-dark';
+              const height = Math.max(15, Math.min(100, (entry.riskScore / 100) * 100));
+              const color = entry.voiceStatus === 'CLONED VOICE' ? 'bg-[#EF4444]' :
+                            entry.voiceStatus === 'UNCERTAIN' ? 'bg-[#F59E0B]' :
+                            entry.voiceStatus === 'REAL' ? 'bg-[#10B981]' :
+                            'bg-[#00C2FF]';
               
               return (
                 <div
                   key={index}
-                  className={`flex-1 ${color} rounded-t transition-all duration-300`}
+                  className={`flex-1 ${color} rounded-t-[1px] transition-all duration-300`}
                   style={{ height: `${height}%` }}
-                  title={`${entry.riskLevel}: ${entry.riskScore}%`}
+                  title={`${entry.voiceStatus}: ${entry.riskScore}%`}
                 />
               );
             })}
           </div>
-          <div className="flex justify-between text-xs text-gray-500 mt-2">
-            <span>Start</span>
-            <span>Now</span>
-          </div>
         </div>
       )}
 
-      {/* Privacy Notice */}
-      <div className="mt-6 pt-6 border-t border-dark-700">
-        <p className="text-gray-500 text-xs text-center">
-          🔒 Audio not stored • Privacy-first analysis
-        </p>
+      {/* Meta Footer */}
+      <div className="mt-5 pt-4 border-t border-[#F1F5F9] dark:border-[#1E3A5F] flex items-center justify-between text-[11px] font-mono text-[#64748B] dark:text-[#94A3B8]">
+        <span className="truncate max-w-[180px]">Session: {callId}</span>
+        <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-sans font-semibold">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+          Immutable Audit Enforced
+        </span>
       </div>
     </div>
   );
