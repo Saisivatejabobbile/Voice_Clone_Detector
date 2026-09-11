@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * useAudioProcessor Hook
@@ -54,8 +54,13 @@ export const useAudioProcessor = (remoteStream, callId, sendAudioChunk) => {
       try {
         console.log('[AudioProcessor] Initializing for REMOTE STREAM (analyzing caller audio on receiver side)...');
         
-        // Create AudioContext
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // Create AudioContext with native 16kHz resampler for pristine ML voice detection
+        let audioContext;
+        try {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        } catch (e) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
         audioContextRef.current = audioContext;
         
         // Resume context if suspended (required for module loading)
@@ -85,12 +90,8 @@ export const useAudioProcessor = (remoteStream, callId, sendAudioChunk) => {
           const { type, data, hasSpeech } = event.data;
           
           if (type === 'pcm_chunk') {
-            console.log(
-              `[AudioProcessor] Chunk received: ${data.length} samples, speech=${hasSpeech}`
-            );
-            
-            // Send to analysis WebSocket if speech detected
-            if (hasSpeech && sendAudioChunk) {
+            // Forward PCM chunks to backend WebSocket so server-side VAD isolates target speech from silence
+            if (sendAudioChunk && data && data.length > 0) {
               sendAudioChunk(callId, Array.from(data), 16000);
             }
           }

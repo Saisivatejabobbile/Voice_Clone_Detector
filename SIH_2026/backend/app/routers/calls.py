@@ -135,6 +135,46 @@ async def get_call_history(
     return enriched_calls
 
 
+@router.get("/stats/summary")
+async def get_call_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get call statistics summary for current user
+    """
+    calls = db.query(CallHistory).filter(
+        (CallHistory.caller_id == current_user.id) | 
+        (CallHistory.callee_id == current_user.id)
+    ).all()
+    
+    total_calls = len(calls)
+    
+    # Count risk metrics ONLY for incoming calls received by user
+    incoming_calls = [c for c in calls if c.callee_id == current_user.id]
+    low_risk = sum(1 for call in incoming_calls if call.risk_level == "LOW")
+    medium_risk = sum(1 for call in incoming_calls if call.risk_level == "MEDIUM")
+    high_risk = sum(1 for call in incoming_calls if call.risk_level == "HIGH")
+    
+    # Calculate average duration
+    durations = [call.duration_seconds for call in calls if call.duration_seconds]
+    avg_duration = sum(durations) / len(durations) if durations else 0
+    
+    return {
+        "total_calls": total_calls,
+        "low_risk": low_risk,
+        "medium_risk": medium_risk,
+        "high_risk": high_risk,
+        "threats_detected": high_risk + medium_risk,
+        "by_risk_level": {
+            "LOW": low_risk,
+            "MEDIUM": medium_risk,
+            "HIGH": high_risk
+        },
+        "average_duration": int(avg_duration)
+    }
+
+
 @router.get("/{call_id}", response_model=CallHistoryResponse)
 async def get_call_by_id(
     call_id: str,
@@ -179,42 +219,6 @@ async def get_call_by_id(
         "contact_email": other_user.email if other_user else "unknown@example.com",
         "contact_id": other_user_id,
         "direction": "outgoing" if is_caller else "incoming"
-    }
-
-
-@router.get("/stats/summary")
-async def get_call_stats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Get call statistics summary for current user
-    """
-    calls = db.query(CallHistory).filter(
-        (CallHistory.caller_id == current_user.id) | 
-        (CallHistory.callee_id == current_user.id)
-    ).all()
-    
-    total_calls = len(calls)
-    
-    # Count risk metrics ONLY for incoming calls received by user
-    incoming_calls = [c for c in calls if c.callee_id == current_user.id]
-    low_risk = sum(1 for call in incoming_calls if call.risk_level == "LOW")
-    medium_risk = sum(1 for call in incoming_calls if call.risk_level == "MEDIUM")
-    high_risk = sum(1 for call in incoming_calls if call.risk_level == "HIGH")
-    
-    # Calculate average duration
-    durations = [call.duration_seconds for call in calls if call.duration_seconds]
-    avg_duration = sum(durations) / len(durations) if durations else 0
-    
-    return {
-        "total_calls": total_calls,
-        "by_risk_level": {
-            "LOW": low_risk,
-            "MEDIUM": medium_risk,
-            "HIGH": high_risk
-        },
-        "average_duration": int(avg_duration)
     }
 
 

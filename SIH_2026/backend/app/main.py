@@ -1,4 +1,4 @@
-﻿"""
+"""
 VoiceShield Backend - Main Application
 FastAPI application with WebRTC signaling and AI voice analysis
 """
@@ -32,10 +32,27 @@ async def lifespan(app: FastAPI):
     create_tables()
     logger.info("Database tables created")
     
+    # Clean up any stale presence flags left from previous runs
+    try:
+        from app.database import SessionLocal
+        with SessionLocal() as db_session:
+            db_session.query(User).update({User.is_online: False})
+            db_session.commit()
+        logger.info("Cleared stale presence flags on startup: all users initialized to offline")
+    except Exception as e:
+        logger.warning(f"Could not reset presence flags on startup: {e}")
+    
     yield
     
     # Shutdown
     logger.info("Shutting down application")
+    try:
+        from app.database import SessionLocal
+        with SessionLocal() as db_session:
+            db_session.query(User).update({User.is_online: False})
+            db_session.commit()
+    except Exception:
+        pass
 
 
 # Create FastAPI app

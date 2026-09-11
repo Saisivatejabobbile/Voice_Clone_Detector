@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSharedSimplePeerCall } from '../hooks/useSharedSimplePeerCall.jsx';
 import Layout from '../components/layout/Layout';
@@ -7,6 +8,7 @@ import { IS_MOCK_MODE } from '../constants';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../constants';
 import { PhoneIcon, UsersIcon, ChartIcon, LockIcon, MaskIcon, ShieldIcon } from '../utils/icons';
+import { callsAPI } from '../services/api';
 
 // Enterprise VoiceShield Dashboard
 export default function Dashboard() {
@@ -26,11 +28,43 @@ export default function Dashboard() {
   
   const firstName = user?.full_name?.split(' ')[0] || 'Operator';
   
-  const stats = {
-    activeCalls: callState === 'connected' ? 1 : 0,
-    contactsOnline: isConnected ? 1 : 0,
-    threatsBlocked: 0,
-  };
+  // Real dynamic call and threat statistics from database
+  const [callStats, setCallStats] = useState({
+    total_calls: 0,
+    low_risk: 0,
+    medium_risk: 0,
+    high_risk: 0,
+    threats_detected: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStats = async () => {
+      try {
+        const data = await callsAPI.getCallStats();
+        if (isMounted && data) {
+          const high = data.high_risk ?? (data.by_risk_level?.HIGH ?? 0);
+          const med = data.medium_risk ?? (data.by_risk_level?.MEDIUM ?? 0);
+          const low = data.low_risk ?? (data.by_risk_level?.LOW ?? 0);
+          const total = data.total_calls ?? 0;
+          setCallStats({
+            total_calls: total,
+            low_risk: low,
+            medium_risk: med,
+            high_risk: high,
+            threats_detected: data.threats_detected ?? (high + med)
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load call stats on dashboard:', err);
+      } finally {
+        if (isMounted) setStatsLoading(false);
+      }
+    };
+    fetchStats();
+    return () => { isMounted = false; };
+  }, [callState]);
 
   const handleTestIncomingCall = () => {
     simulateIncomingCall();
@@ -109,31 +143,48 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Security Metrics Overview */}
+        {/* Security Metrics Overview - Real Call & Threat Telemetry */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
           <StatsCard
             icon={<PhoneIcon className="w-5 h-5" />}
-            label="Active Voice Sessions"
-            value={stats.activeCalls}
+            label="Total Calls Screened"
+            value={statsLoading ? '...' : callStats.total_calls}
             color="primary"
-          />
-          <StatsCard
-            icon={<UsersIcon className="w-5 h-5" />}
-            label="Verified Personnel Online"
-            value={stats.contactsOnline}
-            color="success"
+            trend={{
+              positive: true,
+              value: callState === 'connected' ? '1 Active' : `${callStats.total_calls} Screened`,
+              label: 'Voice session ledger'
+            }}
           />
           <StatsCard
             icon={<ShieldIcon className="w-5 h-5" />}
-            label="Impersonation Threats Blocked"
-            value={stats.threatsBlocked}
-            color="danger"
+            label="AI Spoofs & Threats Detected"
+            value={statsLoading ? '...' : callStats.threats_detected}
+            color={callStats.threats_detected > 0 ? "danger" : "warning"}
+            trend={{
+              positive: callStats.threats_detected === 0,
+              value: `${callStats.high_risk} High`,
+              label: callStats.threats_detected === 0 ? 'Zero active threats' : 'Flags intercepted'
+            }}
+          />
+          <StatsCard
+            icon={<LockIcon className="w-5 h-5" />}
+            label="Verified Safe Human Calls"
+            value={statsLoading ? '...' : callStats.low_risk}
+            color="success"
+            trend={{
+              positive: true,
+              value: callStats.total_calls > 0 
+                ? `${Math.round((callStats.low_risk / callStats.total_calls) * 100)}%` 
+                : '100%',
+              label: 'Acoustic integrity'
+            }}
           />
         </div>
 
         {/* Operational Panels */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <SecurityStatusCard status="protected" />
+          <SecurityStatusCard status={callStats.threats_detected > 0 ? 'warning' : 'protected'} />
           
           {/* Quick Actions Panel */}
           <div className="bg-white dark:bg-[#0F1D32] border border-[#E2E8F0] dark:border-[#1E3A5F] rounded-xl p-6 shadow-sm transition-colors">

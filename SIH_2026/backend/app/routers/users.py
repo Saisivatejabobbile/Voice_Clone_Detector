@@ -28,14 +28,25 @@ async def get_online_users(
     """
     Get list of online users
     
-    Returns all users who are currently online (excluding current user)
+    Returns all users who are currently connected via WebSocket signaling (excluding current user)
     """
-    online_users = db.query(User).filter(
-        User.is_online == True,
+    from app.websockets.connection_manager import signaling_manager
+
+    all_users = db.query(User).filter(
         User.id != current_user.id,
         User.is_active == True
     ).all()
     
+    online_users = []
+    for u in all_users:
+        is_connected = signaling_manager.is_user_connected(u.id)
+        if u.is_online != is_connected:
+            u.is_online = is_connected
+            db.add(u)
+        if is_connected:
+            online_users.append(u)
+            
+    db.commit()
     return online_users
 
 
@@ -47,7 +58,7 @@ async def get_contacts(
     """
     Get user's contacts with registration status
     
-    Returns all contacts for the current user with online status if registered
+    Returns all contacts for the current user with real-time online presence
     """
     contacts = db.query(Contact).filter(
         Contact.user_id == current_user.id
@@ -65,8 +76,11 @@ async def get_contacts(
             registered_user = db.query(User).filter(User.id == contact.contact_user_id).first()
             if registered_user:
                 is_connected = signaling_manager.is_user_connected(registered_user.id)
+                if registered_user.is_online != is_connected:
+                    registered_user.is_online = is_connected
+                    db.add(registered_user)
                 contact_dict['is_registered'] = True
-                contact_dict['is_online'] = bool(registered_user.is_online or is_connected)
+                contact_dict['is_online'] = is_connected
             else:
                 contact_dict['is_registered'] = False
                 contact_dict['is_online'] = False
@@ -75,17 +89,20 @@ async def get_contacts(
             user_by_email = db.query(User).filter(User.email == contact.contact_email).first()
             if user_by_email:
                 contact.contact_user_id = user_by_email.id
-                db.commit()
                 is_connected = signaling_manager.is_user_connected(user_by_email.id)
+                if user_by_email.is_online != is_connected:
+                    user_by_email.is_online = is_connected
+                    db.add(user_by_email)
                 contact_dict['contact_user_id'] = user_by_email.id
                 contact_dict['is_registered'] = True
-                contact_dict['is_online'] = bool(user_by_email.is_online or is_connected)
+                contact_dict['is_online'] = is_connected
             else:
                 contact_dict['is_registered'] = False
                 contact_dict['is_online'] = False
         
         enriched_contacts.append(ContactResponse(**contact_dict))
     
+    db.commit()
     return enriched_contacts
 
 
@@ -130,7 +147,8 @@ async def add_contact(
     # Prepare response with registration status
     contact_dict = new_contact.to_dict()
     contact_dict['is_registered'] = registered_user is not None
-    contact_dict['is_online'] = registered_user.is_online if registered_user else False
+    from app.websockets.connection_manager import signaling_manager
+    contact_dict['is_online'] = signaling_manager.is_user_connected(registered_user.id) if registered_user else False
     
     return ContactResponse(**contact_dict)
 

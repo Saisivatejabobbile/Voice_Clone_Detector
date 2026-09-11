@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AudioWorklet Processor for Real-time Audio Processing
  * 
  * Processes audio in 128-sample quantums, accumulates to buffer,
@@ -14,7 +14,7 @@ class VoiceShieldAudioProcessor extends AudioWorkletProcessor {
     // Configuration
     this.bufferSize = 4096;  // Accumulate 4096 samples before sending
     this.targetSampleRate = 16000;  // Target sample rate (16kHz)
-    this.vadThreshold = 0.01;  // Voice activity detection threshold
+    this.vadThreshold = 0.002;  // Sensitive voice activity detection threshold
     
     // State
     this.buffer = [];
@@ -89,29 +89,31 @@ class VoiceShieldAudioProcessor extends AudioWorkletProcessor {
   }
   
   /**
-   * Simple linear interpolation resampling
+   * Continuous linear interpolation resampling with inter-quantum phase preservation
    */
   resample(samples, fromRate, toRate) {
     if (fromRate === toRate) {
       return samples;
     }
     
-    const ratio = toRate / fromRate;
-    const newLength = Math.floor(samples.length * ratio);
-    const resampled = new Float32Array(newLength);
+    const step = fromRate / toRate;
+    const output = [];
+    let srcIndex = this.resamplePhase || 0;
     
-    for (let i = 0; i < newLength; i++) {
-      const srcIndex = i / ratio;
+    while (srcIndex < samples.length - 1) {
       const srcIndexFloor = Math.floor(srcIndex);
       const srcIndexCeil = Math.min(srcIndexFloor + 1, samples.length - 1);
       const fraction = srcIndex - srcIndexFloor;
       
-      // Linear interpolation
-      resampled[i] = samples[srcIndexFloor] * (1 - fraction) +
-                     samples[srcIndexCeil] * fraction;
+      const val = samples[srcIndexFloor] * (1 - fraction) +
+                  samples[srcIndexCeil] * fraction;
+      output.push(val);
+      srcIndex += step;
     }
     
-    return resampled;
+    // Carry over remaining fractional phase to the next 128-sample quantum
+    this.resamplePhase = Math.max(0, srcIndex - samples.length);
+    return new Float32Array(output);
   }
   
   /**

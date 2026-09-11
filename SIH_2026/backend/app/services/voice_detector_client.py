@@ -7,9 +7,12 @@ Endpoints:
 - POST /api/analyze (Header: x-api-key, multipart/form-data form field 'file')
 """
 
+import io
+import wave
 import httpx
 import logging
 import asyncio
+import numpy as np
 from typing import Dict, Any, Optional
 from app.config import settings
 
@@ -156,19 +159,21 @@ class VoiceDetectorClient:
                             err_json = response.json()
                             detail = err_json.get("detail", {})
                             if isinstance(detail, dict) and detail.get("error") == "UNSUPPORTED_OR_UNCERTAIN_LANGUAGE":
-                                logger.info(f"VoiceDetectorClient: Model returned language uncertainty: {detail}")
+                                lang = detail.get("detected_language", "und")
+                                lang_conf = float(detail.get("detected_language_confidence", 50.0))
+                                logger.info(f"VoiceDetectorClient: Model returned language uncertainty ({lang})")
                                 return self._standardize_response({
                                     "prediction": "UNCERTAIN",
-                                    "real_probability": float(detail.get("hindi_probability", 50.0)),
+                                    "real_probability": 50.0,
                                     "synthetic_probability": 50.0,
-                                    "confidence": float(detail.get("detected_language_confidence", 50.0)),
-                                    "risk_level": "LOW",
-                                    "language": detail.get("detected_language", "unknown"),
-                                    "detected_language_code": detail.get("detected_language", "und"),
-                                    "language_confidence": float(detail.get("detected_language_confidence", 50.0)),
-                                    "error": "UNSUPPORTED_OR_UNCERTAIN_LANGUAGE",
-                                    "raw_response": err_json
-                                }, is_fallback=False)
+                                    "confidence": 50.0,
+                                    "risk_level": "MEDIUM",
+                                    "language": lang,
+                                    "detected_language_code": lang,
+                                    "language_confidence": lang_conf,
+                                    "raw_response": err_json,
+                                    "error": "UNSUPPORTED_OR_UNCERTAIN_LANGUAGE"
+                                }, is_fallback=True)
                         except Exception as parse_err:
                             logger.debug(f"Could not parse 422 detail: {parse_err}")
 
@@ -211,13 +216,75 @@ class VoiceDetectorClient:
         )
         return self._create_resilient_fallback(wav_bytes=wav_bytes, error_message=last_error)
 
+    def _normalize_probability(self, value: float) -> float:
+        """Auto-detect if value is in 0-1 decimal scale or 0-100 percentage scale and normalize to 0-100."""
+        if 0.0 <= value <= 1.0 and value != 0.0 and value != 1.0:
+            # Likely a decimal probability (e.g., 0.92), convert to percentage
+            return round(value * 100.0, 2)
+        return round(value, 2)
+
     def _standardize_response(self, raw: Dict[str, Any], is_fallback: bool = False) -> Dict[str, Any]:
-        """Normalize raw JSON response while preserving all original keys."""
-        prediction = str(raw.get("prediction", "UNCERTAIN")).upper()
-        conf = float(raw.get("confidence", raw.get("synthetic_probability", 50.0)))
-        real_prob = float(raw.get("real_probability", 100.0 - conf))
-        synth_prob = float(raw.get("synthetic_probability", conf))
-        risk_level = str(raw.get("risk_level", "MEDIUM")).upper()
+        """Normalize raw JSON response while preserving all original keys.
+        Handles both 0-1 decimal and 0-100 percentage scales from the ML API."""
+        raw_pred = str(raw.get("prediction", raw.get("label", raw.get("result", "UNCERTAIN")))).upper().strip()
+        if raw_pred in ("REAL", "BONAFIDE", "HUMAN", "GENUINE", "ORIGINAL"):
+            prediction = "REAL"
+        elif raw_pred in ("CLONED", "SYNTHETIC", "AI", "SPOOF", "FAKE", "CLONE", "DEEPFAKE"):
+            prediction = "CLONED"
+        elif raw_pred in ("INSUFFICIENT AUDIO", "INSUFFICIENT_AUDIO"):
+            prediction = "INSUFFICIENT AUDIO"
+        else:
+            prediction = "UNCERTAIN"
+        
+        # Extract raw values
+        raw_conf = float(raw.get("confidence", 0.0))
+        raw_real = float(raw.get("real_probability", raw.get("real_prob", 0.0)))
+        raw_synth = float(raw.get("synthetic_probability", raw.get("synth_prob", raw.get("fake_probability", 0.0))))
+        
+        has_explicit_real = ("real_probability" in raw or "real_prob" in raw) and raw_real > 0.0
+        has_explicit_synth = ("synthetic_probability" in raw or "synth_prob" in raw or "fake_probability" in raw) and raw_synth > 0.0
+        
+        conf = self._normalize_probability(raw_conf) if raw_conf > 0 else 0.0
+        
+        if has_explicit_real and has_explicit_synth:
+            real_prob = self._normalize_probability(raw_real)
+            synth_prob = self._normalize_probability(raw_synth)
+            if conf == 0.0:
+                conf = round(max(real_prob, synth_prob), 2)
+        elif has_explicit_real:
+            real_prob = self._normalize_probability(raw_real)
+            synth_prob = round(max(0.0, 100.0 - real_prob), 2)
+            if conf == 0.0:
+                conf = real_prob
+        elif has_explicit_synth:
+            synth_prob = self._normalize_probability(raw_synth)
+            real_prob = round(max(0.0, 100.0 - synth_prob), 2)
+            if conf == 0.0:
+                conf = synth_prob
+        else:
+            # Neither real nor synthetic probability was explicitly returned by the ML model.
+            # Derive coherently according to the model's prediction!
+            if conf == 0.0:
+                conf = 85.0
+            if prediction == "REAL":
+                real_prob = conf
+                synth_prob = round(max(0.0, 100.0 - conf), 2)
+            elif prediction == "CLONED":
+                synth_prob = conf
+                real_prob = round(max(0.0, 100.0 - conf), 2)
+            else:
+                real_prob = 50.0
+                synth_prob = 50.0
+                conf = 50.0
+        
+        risk_level = str(raw.get("risk_level", "LOW" if prediction == "REAL" else ("HIGH" if prediction == "CLONED" else "MEDIUM"))).upper()
+
+        logger.info(
+            f"VoiceDetectorClient STANDARDIZE: "
+            f"raw_conf={raw_conf}, raw_real={raw_real}, raw_synth={raw_synth} → "
+            f"normalized: conf={conf}%, real={real_prob}%, synth={synth_prob}%, "
+            f"prediction={prediction}, is_fallback={is_fallback}"
+        )
 
         return {
             "prediction": prediction,

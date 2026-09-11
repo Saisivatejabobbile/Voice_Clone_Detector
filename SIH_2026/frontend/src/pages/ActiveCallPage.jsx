@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SimpleLayout } from '../components/layout/Layout';
 import Avatar from '../components/common/Avatar';
@@ -31,6 +31,17 @@ export default function ActiveCallPage() {
 
   // Robust determination: verify both state and persistent session storage
   const isCallReceiver = isReceiver || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(`call_role_${callId}`) === 'receiver');
+  const [hasConnected, setHasConnected] = useState(false);
+  const [isCallEnded, setIsCallEnded] = useState(false);
+
+  useEffect(() => {
+    if (callState === 'connected') {
+      setHasConnected(true);
+    } else if (callState === 'idle' || callState === 'ended') {
+      setIsCallEnded(true);
+      navigate(ROUTES.DASHBOARD);
+    }
+  }, [callState, navigate]);
 
   // Initialize analysis WebSocket connection - ONLY for receiver
   useEffect(() => {
@@ -52,7 +63,7 @@ export default function ActiveCallPage() {
 
   // Create callback to send audio chunks to analysis WebSocket
   const sendAudioChunk = useCallback((callId, pcmData, sampleRate) => {
-    if (!isCallReceiver) {
+    if (!isCallReceiver || isCallEnded) {
       return;
     }
 
@@ -60,10 +71,10 @@ export default function ActiveCallPage() {
     if (analysisWS.isConnected) {
       analysisWS.sendAudioChunk(callId, pcmData, sampleRate);
     }
-  }, [isCallReceiver]);
+  }, [isCallReceiver, isCallEnded]);
 
-  // Initialize AudioWorklet with remote stream - ONLY for receiver
-  const shouldProcessAudio = callState === 'connected' && remoteStream && callId && isCallReceiver;
+  // Initialize AudioWorklet with remote stream - ONLY for receiver while connected
+  const shouldProcessAudio = callState === 'connected' && remoteStream && callId && isCallReceiver && !isCallEnded;
   
   useAudioProcessor(
     shouldProcessAudio ? remoteStream : null,
@@ -71,7 +82,7 @@ export default function ActiveCallPage() {
     sendAudioChunk
   );
 
-  // Redirect if no active call
+  // Redirect immediately if call is ended or becomes idle on either side
   useEffect(() => {
     if (callState === 'idle' || callState === 'ended') {
       navigate(ROUTES.DASHBOARD);
@@ -89,12 +100,23 @@ export default function ActiveCallPage() {
   };
 
   const handleEndCall = () => {
-    endCall();
+    endCall(false, callId);
+    navigate(ROUTES.DASHBOARD);
+  };
+
+  const handleExitCall = () => {
+    if (typeof sessionStorage !== 'undefined' && callId) {
+      sessionStorage.removeItem(`call_role_${callId}`);
+    }
+    endCall(false, callId);
     navigate(ROUTES.DASHBOARD);
   };
 
   // Determine connection status for display
   const getConnectionStatus = () => {
+    if (isCallEnded) {
+      return { label: 'Call Session Ended', variant: 'warning', pulse: false };
+    }
     switch (callState) {
       case 'calling':
         return { label: 'Calling...', variant: 'warning', pulse: true };
@@ -111,8 +133,8 @@ export default function ActiveCallPage() {
 
   const connectionStatus = getConnectionStatus();
 
-  // Show connecting state for non-connected calls
-  if (callState !== 'connected') {
+  // Show connecting state for non-connected calls before connection
+  if (callState !== 'connected' && !hasConnected) {
     return (
       <SimpleLayout>
         <div className="min-h-screen bg-[#F5F8FC] dark:bg-[#070E1A] flex items-center justify-center p-4 transition-colors">
@@ -212,16 +234,30 @@ export default function ActiveCallPage() {
                   </p>
                 </div>
 
-                {/* Call Controls */}
+                {/* Call Controls or End State Exit Button */}
                 <div className="pt-2">
-                  <CallControls 
-                    onMuteToggle={handleMuteToggle}
-                    onSpeakerToggle={() => {}}
-                    onAddUser={() => {}}
-                    onEndCall={handleEndCall}
-                    isMuted={isMuted}
-                    isSpeakerOn={false}
-                  />
+                  {isCallEnded ? (
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Call session ended. Final voice audit is displayed on the right.
+                      </p>
+                      <button
+                        onClick={handleExitCall}
+                        className="px-6 py-2.5 bg-[#00C2FF] hover:bg-[#00AEE6] text-[#0B1F3A] font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
+                      >
+                        ← Return to Dashboard
+                      </button>
+                    </div>
+                  ) : (
+                    <CallControls 
+                      onMuteToggle={handleMuteToggle}
+                      onSpeakerToggle={() => {}}
+                      onAddUser={() => {}}
+                      onEndCall={handleEndCall}
+                      isMuted={isMuted}
+                      isSpeakerOn={false}
+                    />
+                  )}
                 </div>
 
                 {/* Privacy Footnote */}

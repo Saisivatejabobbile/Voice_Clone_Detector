@@ -297,6 +297,22 @@ export const callsAPI = {
     return apiCall(`/api/calls/history?limit=${limit}&offset=${offset}`);
   },
 
+  // Get call statistics summary
+  getCallStats: async () => {
+    if (IS_MOCK_MODE) {
+      return {
+        total_calls: 0,
+        low_risk: 0,
+        medium_risk: 0,
+        high_risk: 0,
+        threats_detected: 0,
+        by_risk_level: { LOW: 0, MEDIUM: 0, HIGH: 0 },
+        average_duration: 0
+      };
+    }
+    return apiCall('/api/calls/stats/summary');
+  },
+
   // Get call session by ID
   getCallSession: async (callId) => {
     if (IS_MOCK_MODE) {

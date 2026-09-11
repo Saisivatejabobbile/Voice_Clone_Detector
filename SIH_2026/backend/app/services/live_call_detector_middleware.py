@@ -281,13 +281,17 @@ class LiveCallSessionDetector:
         logger.info(f"Call {self.call_id}: Starting call termination lifecycle...")
         self.is_active = False
 
-        # Step 1: Check if accumulated speech warrants a final window (even if call was cut under 20.0s)
+        total_usable_speech = self.buffer_manager.get_lifetime_speech_duration()
+        sent_to_model_sec = 0.0
+
+        # Step 1: Check if accumulated speech warrants a final window (>= 10.0s threshold)
         final_window = self.buffer_manager.extract_final_window_wav()
         if final_window:
             wav_bytes, window_id, duration_sec = final_window
+            sent_to_model_sec = duration_sec
             try:
                 logger.info(
-                    f"Call {self.call_id}: Running cutoff/final ML analysis on {duration_sec:.2f}s of speech"
+                    f"Call {self.call_id}: Running cutoff/final ML analysis on {duration_sec:.2f}s of speech (>= 10.0s threshold)"
                 )
                 ml_response = await self.ml_client.analyze_audio(
                     wav_bytes=wav_bytes,
@@ -300,6 +304,9 @@ class LiveCallSessionDetector:
                 )
             except Exception as e:
                 logger.error(f"Call {self.call_id}: Error analyzing final window: {e}")
+        elif len(self.aggregator.window_history) > 0:
+            # Full 20s window(s) were analyzed during the live call
+            sent_to_model_sec = sum(w.get("duration_seconds", 0.0) for w in self.aggregator.window_history)
 
         # Step 2: Complete in-flight ML requests
         wait_cycles = 0
@@ -308,7 +315,6 @@ class LiveCallSessionDetector:
             wait_cycles += 1
 
         # Step 3: Finalize Aggregator
-        total_usable_speech = self.buffer_manager.get_lifetime_speech_duration()
         final_summary = self.aggregator.finalize_call(total_usable_speech)
 
         # Step 4: Record final call verdict on Blockchain Ledger (Section 24, 25)
@@ -327,6 +333,16 @@ class LiveCallSessionDetector:
         final_payload = self._construct_telemetry_payload(final_summary, final_bc_record)
         final_payload["type"] = "final_call_verdict"
         final_payload["is_call_ended"] = True
+        final_payload["audio_sent_to_model_sec"] = round(sent_to_model_sec, 2)
+        final_payload["target_speech_collected_sec"] = round(total_usable_speech, 2)
+        final_payload["stability_reason"] = final_summary.get("stability_reason", "")
+        if final_bc_record:
+            final_payload["blockchain_audit"] = {
+                "tx_hash": final_bc_record.get("tx_hash"),
+                "block_number": final_bc_record.get("block_number"),
+                "audit_hash": final_bc_record.get("audit_hash"),
+                "verified": final_bc_record.get("verified", True)
+            }
 
         # Broadcast final verdict
         if broadcast_callback:
@@ -357,8 +373,11 @@ class LiveCallSessionDetector:
         # Clean up memory buffers
         self.buffer_manager.clear()
         logger.info(
-            f"Call {self.call_id}: Session terminated. Final verdict: {final_summary['voice_status']} "
-            f"(Conf={final_summary['confidence']}%, Tx={final_bc_record['tx_hash'][:12]}...)"
+            f"[VoiceShield Console Audit] Call {self.call_id} ended. "
+            f"Target speech collected: {total_usable_speech:.1f}s. "
+            f"Audio sent to model: {sent_to_model_sec:.1f}s. "
+            f"Final Decision: {final_summary['voice_status']} (Confidence: {final_summary['confidence']}%, Risk: {final_summary['risk_level']}). "
+            f"Reason: {final_summary.get('stability_reason')}"
         )
         return final_payload
 

@@ -35,12 +35,7 @@ export default function LandingPage() {
     },
   ];
 
-  const enterpriseStats = [
-    { value: '99.8%', label: 'Detection Accuracy', sub: 'Validated against state-of-the-art TTS/VC models' },
-    { value: '< 85ms', label: 'Processing Latency', sub: 'Near-zero perceptible communication delay' },
-    { value: '100%', label: 'Zero Retention', sub: 'No raw audio logging or storage' },
-    { value: 'Enterprise', label: 'Banking Grade', sub: 'Ready for high-security telecommunications' },
-  ];
+
 
   const complianceBadges = [
     'SOC-2 Compliant Architecture',
@@ -187,22 +182,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Metrics Section */}
-      <section className="py-16 bg-white dark:bg-[#0B1524] border-b border-[#E2E8F0] dark:border-[#1E3A5F] transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {enterpriseStats.map((item, idx) => (
-              <div key={idx} className="p-6 bg-slate-50 dark:bg-[#0F1D32] border border-slate-200/80 dark:border-[#1E3A5F] rounded-xl text-left transition-colors">
-                <div className="font-mono text-3xl font-bold text-[#0B1F3A] dark:text-[#00C2FF] mb-1 tracking-tight">
-                  {item.value}
-                </div>
-                <div className="text-sm font-bold text-[#0B1F3A] dark:text-white mb-1">{item.label}</div>
-                <div className="text-xs text-[#64748B] dark:text-[#94A3B8] leading-relaxed">{item.sub}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* Core Architectural Pillars */}
       <section className="py-20 bg-[#F5F8FC] dark:bg-[#070E1A] transition-colors">

@@ -13,6 +13,7 @@ logs/
 temp/
 uploads/
 voiceshield.db
+data/*.json
 *.sqlite3
 *.db
 .env

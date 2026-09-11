@@ -28,13 +28,13 @@ class SimpleVAD:
     def __init__(
         self,
         sample_rate: int = 16000,
-        energy_threshold: float = 150.0,
+        energy_threshold: float = 60.0,
         zcr_threshold: float = 0.04
     ):
         self.sample_rate = sample_rate
         self.energy_threshold = energy_threshold
         self.zcr_threshold = zcr_threshold
-        self.noise_floor = 50.0
+        self.noise_floor = 30.0
 
     def is_speech(self, pcm_samples: List[int]) -> Tuple[bool, float]:
         """
@@ -53,25 +53,25 @@ class SimpleVAD:
         sum_squares = sum(s * s for s in pcm_samples)
         rms = math.sqrt(sum_squares / len(pcm_samples))
 
-        # Dynamic noise floor adaptation (slow tracking)
+        # Dynamic noise floor adaptation (slow tracking of room ambient)
         if rms < self.energy_threshold:
             self.noise_floor = 0.95 * self.noise_floor + 0.05 * rms
 
         # Effective speech energy threshold with noise margin
-        active_threshold = max(self.energy_threshold, self.noise_floor * 2.2)
+        active_threshold = max(self.energy_threshold, self.noise_floor * 1.5)
 
         if rms < active_threshold:
             return False, rms
 
-        # Zero-Crossing Rate (ZCR) calculation to reject static DC offset or low rumble
+        # Zero-Crossing Rate (ZCR) calculation to reject static DC offset or low electrical hum
         zero_crossings = 0
         for i in range(1, len(pcm_samples)):
             if (pcm_samples[i] >= 0 and pcm_samples[i - 1] < 0) or (pcm_samples[i] < 0 and pcm_samples[i - 1] >= 0):
                 zero_crossings += 1
         zcr = zero_crossings / len(pcm_samples)
 
-        # Human speech typically has moderate ZCR; very high ZCR is hiss/white noise, very low is 50/60Hz hum
-        is_active = (rms >= active_threshold) and (0.015 <= zcr <= 0.45)
+        # Human speech covers ZCR from ~0.005 (deep voiced sounds) to ~0.65 (sibilants/fricatives)
+        is_active = (rms >= active_threshold) and (0.005 <= zcr <= 0.65)
         return is_active, rms
 
 
@@ -267,13 +267,18 @@ class SpeechBufferManager:
 
     def extract_final_window_wav(self) -> Optional[Tuple[bytes, int, float]]:
         """
-        Executed during call termination lifecycle (Section 11, 12, 20).
-        Produces a final window slice of whatever usable target speech was accumulated,
-        even if the call was cut under 20.0 seconds (requires at least 1.0s).
+        Executed during call termination lifecycle.
+        Produces a final window slice if usable target speech is >= 10.0 seconds.
+        If speech is < 10.0 seconds, returns None (insufficient audio for model inference).
         """
         usable_samples = len(self.usable_buffer)
-        min_cutoff_samples = int(self.sample_rate * 1.0)
+        min_cutoff_samples = int(self.sample_rate * 10.0)  # 10.0 seconds minimum threshold
         if usable_samples < min_cutoff_samples:
+            usable_sec = usable_samples / self.sample_rate
+            logger.info(
+                f"Call {self.call_id}: Usable speech {usable_sec:.2f}s < 10.0s cutoff threshold. "
+                f"Skipping model dispatch (marked as INSUFFICIENT AUDIO)."
+            )
             return None
 
         slice_samples = list(self.usable_buffer)

@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     WINDOW_SIZE_SEC: float = 25.0
     WINDOW_SLIDE_STEP_SEC: float = 5.0
     MAX_BUFFER_SEC: float = 60.0
-    UNCERTAIN_CONFIDENCE_THRESHOLD: float = 60.0
+    UNCERTAIN_CONFIDENCE_THRESHOLD: float = 45.0
 
     # Blockchain Audit Engine Configuration
     BLOCKCHAIN_DIFFICULTY: int = 2

@@ -183,16 +183,12 @@ async function getAudioStreamWithFallback() {
         
         peer.on('error', (err) => {
           console.error('[WebRTC] Caller peer error:', err);
-          if (isPeerConnected) {
-            endCallRef.current?.(false, currentCallIdRef.current);
-          }
+          endCallRef.current?.(true, currentCallIdRef.current);
         });
 
         peer.on('close', () => {
           console.log('[WebRTC] Caller peer connection closed');
-          if (isPeerConnected) {
-            endCallRef.current?.(false, currentCallIdRef.current);
-          }
+          endCallRef.current?.(true, currentCallIdRef.current);
         });
         
         peerRef.current = peer;
@@ -272,10 +268,20 @@ async function getAudioStreamWithFallback() {
 
   // Handle hangup from remote peer
   useEffect(() => {
-    return ws.onMessage('hangup', (msg) => {
+    const unsubHangup = ws.onMessage('hangup', (msg) => {
       console.log('[Call] Call ended by remote user:', msg);
       endCallRef.current?.(true, msg?.call_id);
     });
+
+    const unsubCallEnded = ws.onMessage('call_ended', (msg) => {
+      console.log('[Call] Call ended signal received from server:', msg);
+      endCallRef.current?.(true, msg?.call_id);
+    });
+
+    return () => {
+      unsubHangup?.();
+      unsubCallEnded?.();
+    };
   }, [ws]);
 
   const startCallTimer = () => {
@@ -345,15 +351,15 @@ async function getAudioStreamWithFallback() {
       return;
     }
     
+    const callId = incomingCall.call_id;
+    const callerId = incomingCall.from;
+
     console.log('[Call] Accepting call as RECEIVER (CALLEE):', incomingCall);
     setCallState('connecting');
     setIsReceiver(true); // RECEIVER role
-    if (typeof sessionStorage !== 'undefined') {
+    if (typeof sessionStorage !== 'undefined' && callId) {
       sessionStorage.setItem(`call_role_${callId}`, 'receiver');
     }
-    
-    const callId = incomingCall.call_id;
-    const callerId = incomingCall.from;
     
     // For receiver: store caller as the "other party" for history
     const numericCallerId = Number(callerId);
@@ -435,16 +441,12 @@ async function getAudioStreamWithFallback() {
       
       peer.on('error', (err) => {
         console.error('[WebRTC] Callee peer error:', err);
-        if (isPeerConnected) {
-          endCallRef.current?.(false, callId);
-        }
+        endCallRef.current?.(true, callId);
       });
 
       peer.on('close', () => {
         console.log('[WebRTC] Callee peer connection closed');
-        if (isPeerConnected) {
-          endCallRef.current?.(false, callId);
-        }
+        endCallRef.current?.(true, callId);
       });
       
       peerRef.current = peer;
@@ -508,15 +510,18 @@ async function getAudioStreamWithFallback() {
       : null;
     const callId = explicitCallId || currentCallIdRef.current || urlCallId;
     
+    const targetPeerId = calleeIdRef.current;
+    
     // Only send hangup upstream if this side initiated the termination
     if (!isRemote && callId) {
-      console.log('[Call] Sending hangup upstream for call_id:', callId);
+      console.log('[Call] Sending hangup upstream for call_id:', callId, 'to peer:', targetPeerId);
       ws.sendMessage({ 
         type: 'hangup', 
-        call_id: callId 
+        call_id: callId,
+        to: targetPeerId 
       });
     }
-    
+
     setCallState('idle');
     setIncomingCall(null);
     setCallerDetails(null);
@@ -524,14 +529,16 @@ async function getAudioStreamWithFallback() {
     setIsMuted(false);
     setRemoteStream(null);
     setIsReceiver(false);
-    if (typeof sessionStorage !== 'undefined' && callId) {
-      sessionStorage.removeItem(`call_role_${callId}`);
-    }
+    
     currentCallIdRef.current = null;
     calleeIdRef.current = null;
     callStartTimeRef.current = null;
 
-    // Immediately navigate away from active call screen on both sides
+    if (typeof sessionStorage !== 'undefined' && callId) {
+      sessionStorage.removeItem(`call_role_${callId}`);
+    }
+
+    // When call ends (either locally initiated or ended by remote peer), navigate both sides away immediately
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/call/')) {
       navigate(ROUTES.DASHBOARD);
     }
@@ -548,8 +555,9 @@ async function getAudioStreamWithFallback() {
           ? window.location.pathname.split('/call/')[1]
           : null;
         const callId = currentCallIdRef.current || urlCallId;
+        const targetPeerId = calleeIdRef.current;
         if (callId) {
-          ws.sendMessage({ type: 'hangup', call_id: callId });
+          ws.sendMessage({ type: 'hangup', call_id: callId, to: targetPeerId });
         }
       }
     };

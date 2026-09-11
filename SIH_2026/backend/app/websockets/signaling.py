@@ -393,75 +393,88 @@ async def _handle_hangup_routing(
     session_manager: CallSessionManager,
     db: Session
 ) -> None:
-    """Handle hangup routing."""
+    """Handle hangup routing with multi-tier peer resolution."""
     call_id = message.get("call_id")
-    
-    if not call_id:
-        logger.error(f"Missing call_id in hangup from user {user_id}")
-        return
-    
-    call_session = session_manager.get_session(call_id)
-    if not call_session:
-        logger.warning(f"Call session {call_id} not found for hangup")
-        return
-    
-    # Update call session status
-    session_manager.update_session_status(call_id, CallState.ENDED.value)
-    
-    # Determine the other peer
-    caller_id = int(call_session.caller_id)
-    callee_id = int(call_session.callee_id)
+    target_user_id = message.get("to")
     current_uid = int(user_id)
     
-    other_user_id = callee_id if caller_id == current_uid else caller_id
+    call_session = None
+    if call_id:
+        call_session = session_manager.get_session(call_id)
     
-    logger.info(f"Call {call_id} ended by user {user_id}")
+    # Fallback: check if current user has active calls registered
+    if not call_session:
+        active_call_ids = session_manager.user_calls.get(current_uid, [])
+        for cid in active_call_ids:
+            s = session_manager.get_session(cid)
+            if s:
+                call_session = s
+                call_id = cid
+                break
+                
+    other_user_id = None
+    if call_session:
+        # Update call session status
+        session_manager.update_session_status(call_id, CallState.ENDED.value)
+        caller_id = int(call_session.caller_id)
+        callee_id = int(call_session.callee_id)
+        other_user_id = callee_id if caller_id == current_uid else caller_id
+    elif target_user_id is not None:
+        try:
+            other_user_id = int(target_user_id)
+        except (ValueError, TypeError):
+            other_user_id = target_user_id
+
+    logger.info(f"Call {call_id} hangup by user {current_uid} -> target other peer: {other_user_id}")
     
     # Forward hangup to other peer (if still online)
-    if connection_manager.is_user_connected(other_user_id):
+    if other_user_id is not None and connection_manager.is_user_connected(other_user_id):
         await connection_manager.send_personal_message({
             "type": "hangup",
             "call_id": call_id,
             "by": current_uid
         }, other_user_id)
+        logger.info(f"Successfully forwarded hangup for call {call_id} to peer {other_user_id}")
     
-    # Execute Mandatory 8-Step Call Termination Lifecycle in detector middleware
+    # Execute Mandatory Call Termination Lifecycle in detector middleware
     final_verdict = None
-    try:
-        from app.services.live_call_detector_middleware import detector_middleware
-        final_verdict = await detector_middleware.terminate_call(call_id)
-        if final_verdict:
-            logger.info(
-                f"Call {call_id}: Final blockchain audit confirmed: "
-                f"state={final_verdict.get('voice_status')}, tx={final_verdict.get('blockchain_audit', {}).get('tx_hash')}"
-            )
-    except Exception as term_err:
-        logger.warning(f"Error terminating detector middleware for call {call_id}: {term_err}")
+    if call_id:
+        try:
+            from app.services.live_call_detector_middleware import detector_middleware
+            final_verdict = await detector_middleware.terminate_call(call_id)
+            if final_verdict:
+                logger.info(
+                    f"Call {call_id}: Final blockchain audit confirmed: "
+                    f"state={final_verdict.get('voice_status')}, tx={final_verdict.get('blockchain_audit', {}).get('tx_hash')}"
+                )
+        except Exception as term_err:
+            logger.warning(f"Error terminating detector middleware for call {call_id}: {term_err}")
 
     # Save call history before ending session
-    call_history_service = CallHistoryService(db)
-    final_session = session_manager.end_session(call_id)
-    
-    if final_session:
-        # Extract final risk data from call session or detector middleware final verdict
-        final_risk_level = getattr(final_session, 'final_risk_level', None)
-        final_risk_score = getattr(final_session, 'final_risk_score', None)
+    if call_id:
+        call_history_service = CallHistoryService(db)
+        final_session = session_manager.end_session(call_id)
         
-        if final_verdict:
-            final_risk_level = final_verdict.get("risk_level", final_risk_level or "LOW")
-            final_risk_score = int(round(final_verdict.get("risk_score", final_risk_score or 0)))
+        if final_session:
+            # Extract final risk data from call session or detector middleware final verdict
+            final_risk_level = getattr(final_session, 'final_risk_level', None)
+            final_risk_score = getattr(final_session, 'final_risk_score', None)
+            
+            if final_verdict:
+                final_risk_level = final_verdict.get("risk_level", final_risk_level or "LOW")
+                final_risk_score = int(round(final_verdict.get("risk_score", final_risk_score or 0)))
 
-        # Create call history record
-        result = await call_history_service.create_call_record(
-            call_session=final_session,
-            final_risk_level=final_risk_level,
-            final_risk_score=final_risk_score
-        )
-        
-        if result:
-            logger.info(f"Call history saved for {call_id}: duration={result.duration_seconds}s, risk={result.risk_level}")
-        else:
-            logger.error(f"Failed to save call history for {call_id}")
+            # Create call history record
+            try:
+                result = await call_history_service.create_call_record(
+                    call_session=final_session,
+                    final_risk_level=final_risk_level,
+                    final_risk_score=final_risk_score
+                )
+                if result:
+                    logger.info(f"Call history saved for {call_id}: duration={result.duration_seconds}s, risk={result.risk_level}")
+            except Exception as hist_err:
+                logger.error(f"Failed to save call history for {call_id}: {hist_err}")
 
 
 

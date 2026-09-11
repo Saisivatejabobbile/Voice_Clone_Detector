@@ -32,7 +32,7 @@ export default function GlobalActiveCallOverlay() {
   }
 
   const handleEndCall = () => {
-    endCall();
+    endCall(false, callId);
   };
 
   return (

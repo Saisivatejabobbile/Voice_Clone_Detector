@@ -15,11 +15,13 @@ import { getAnalysisWebSocket } from '../../services/websocket';
  * - Usable Target Speech Telemetry
  */
 export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, externalData = null }) {
-  const [voiceStatus, setVoiceStatus] = useState('INSUFFICIENT AUDIO');
+  const [voiceStatus, setVoiceStatus] = useState('SAMPLING');
+  const [isCallEnded, setIsCallEnded] = useState(false);
+  const [audioSentToModelSec, setAudioSentToModelSec] = useState(0);
   const [riskLevel, setRiskLevel] = useState('LOW');
   const [riskScore, setRiskScore] = useState(0);
   const [confidence, setConfidence] = useState(0);
-  const [recommendation, setRecommendation] = useState('Accumulating target speech for verification...');
+  const [recommendation, setRecommendation] = useState('Listening to remote caller. Target speech is isolated and ambient silence is excluded...');
   const [blockchainAudit, setBlockchainAudit] = useState(null);
   const [detectedLanguage, setDetectedLanguage] = useState(null);
   const [targetSpeechAnalyzed, setTargetSpeechAnalyzed] = useState(0);
@@ -87,7 +89,12 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
 
       const score = message.risk_score ?? message.riskScore ?? 0;
       let level = message.risk_level ?? message.riskLevel ?? 'LOW';
-      const status = message.voice_status || (score >= 60 ? 'CLONED VOICE' : score > 0 ? 'REAL' : 'INSUFFICIENT AUDIO');
+      const status = message.voice_status || (score >= 60 ? 'CLONED VOICE' : score > 0 ? 'REAL' : 'SAMPLING');
+
+      const isEnded = Boolean(message.is_call_ended || message.type === 'final_call_verdict');
+      if (isEnded) {
+        setIsCallEnded(true);
+      }
 
       setVoiceStatus(status);
       setRiskLevel(level);
@@ -103,6 +110,8 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
       }
       if (message.target_speech_analyzed !== undefined) {
         setTargetSpeechAnalyzed(message.target_speech_analyzed);
+      } else if (message.usable_audio_duration !== undefined) {
+        setTargetSpeechAnalyzed(message.usable_audio_duration);
       }
       if (message.windows_analyzed !== undefined) {
         setWindowsAnalyzed(message.windows_analyzed);
@@ -113,6 +122,27 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
           acoustic: message.acoustic_indicators,
           prosody: message.prosody_indicators
         });
+      }
+
+      // Mandatory User Audit Log upon call termination
+      if (isEnded) {
+        const speechSec = message.target_speech_analyzed ?? message.usable_audio_duration ?? message.target_speech_collected_sec ?? targetSpeechAnalyzed;
+        const sentSec = message.audio_sent_to_model_sec !== undefined 
+          ? message.audio_sent_to_model_sec 
+          : (speechSec >= 10.0 ? speechSec : 0.0);
+        setAudioSentToModelSec(sentSec);
+        
+        const finalStatus = message.voice_status || status;
+        const finalReason = message.stability_reason || message.reason || message.recommendation || (speechSec < 10.0 ? 'Call ended before collecting minimum 10 seconds of speech required for AI detection.' : 'Acoustic neural evaluation completed.');
+        
+        console.group('%c[VoiceShield] CALL TERMINATED - FINAL VOICE AUDIT', 'background: #0B1F3A; color: #00C2FF; font-weight: bold; font-size: 12px; padding: 4px;');
+        console.log(`⏱ Total Usable Speech Collected: %c${Number(speechSec).toFixed(1)}s`, 'font-weight: bold; color: #38BDF8;');
+        console.log(`🤖 Audio Sent to Model API: %c${Number(sentSec).toFixed(1)}s`, 'font-weight: bold; color: #A78BFA;');
+        console.log(`🎙 Primary Decision: %c${finalStatus}`, `font-weight: bold; font-size: 13px; color: ${finalStatus === 'CLONED VOICE' ? '#EF4444' : finalStatus === 'REAL' ? '#10B981' : '#F59E0B'};`);
+        console.log(`📊 Model Confidence: %c${message.model_confidence ?? message.confidence ?? 0}%`, 'font-weight: bold;');
+        console.log(`🛡 Risk Evaluation: %c${level} (${score}%)`, 'font-weight: bold;');
+        console.log(`📝 Evaluation Reason / Rationale: %c${finalReason}`, 'font-style: italic; color: #94A3B8;');
+        console.groupEnd();
       }
 
       const timestamp = message.timestamp || new Date().toISOString();
@@ -138,13 +168,33 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
     };
   }, [callId]);
 
-  // Semantic styling configuration based strictly on the 4 application states
+  // Semantic styling configuration based strictly on application states
   const getStatusConfig = () => {
+    // If call ended and < 10s speech was collected:
+    if (isCallEnded && (windowsAnalyzed === 0 || voiceStatus === 'INSUFFICIENT AUDIO') && targetSpeechAnalyzed < 10.0) {
+      return {
+        title: 'INSUFFICIENT AUDIO',
+        subLabel: 'CALL ENDED WITH LESS THAN 10s SPEECH',
+        badgeBg: 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+        scoreColor: 'text-[#F59E0B]',
+        barColor: 'bg-[#F59E0B]',
+        bannerBg: 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-900/80 text-amber-900 dark:text-amber-200',
+        indicatorColor: '#F59E0B',
+        icon: (
+          <svg className="w-5 h-5 text-[#F59E0B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        )
+      };
+    }
+
     switch (voiceStatus) {
       case 'CLONED VOICE':
+      case 'SYNTHETIC':
+      case 'AI CLONED':
         return {
-          title: 'CLONED VOICE',
-          subLabel: 'CRITICAL SPOOF ATTACK DETECTED',
+          title: 'AI CLONED',
+          subLabel: 'CRITICAL SYNTHETIC CLONE DETECTED',
           badgeBg: 'bg-rose-100 dark:bg-red-950/80 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700',
           scoreColor: 'text-[#EF4444]',
           barColor: 'bg-[#EF4444]',
@@ -159,7 +209,7 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
       case 'UNCERTAIN':
         return {
           title: 'UNCERTAIN',
-          subLabel: 'AMBIGUOUS ACOUSTIC PATTERN',
+          subLabel: 'AMBIGUOUS ACOUSTIC PATTERNS',
           badgeBg: 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700',
           scoreColor: 'text-[#F59E0B]',
           barColor: 'bg-[#F59E0B]',
@@ -186,11 +236,13 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
             </svg>
           )
         };
+      case 'SAMPLING':
       case 'INSUFFICIENT AUDIO':
       default:
+        // During active call sampling (never say INSUFFICIENT AUDIO while live)
         return {
-          title: 'INSUFFICIENT AUDIO',
-          subLabel: 'ACCUMULATING TARGET SPEECH SAMPLES',
+          title: 'ANALYZING VOICE...',
+          subLabel: 'ACCUMULATING TARGET SPEECH • FILTERING SILENCE',
           badgeBg: 'bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-200 border-sky-300 dark:border-sky-700',
           scoreColor: 'text-[#008BB8] dark:text-[#00C2FF]',
           barColor: 'bg-[#00C2FF]',
@@ -252,13 +304,15 @@ export default function RiskDashboard({ callId, callerInfo = {}, isAnalyzing, ex
         <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 mt-4 overflow-hidden">
           <div
             className={`h-full ${config.barColor} transition-all duration-500 rounded-full`}
-            style={{ width: `${voiceStatus === 'INSUFFICIENT AUDIO' ? speechProgress : Math.min(riskScore, 100)}%` }}
+            style={{ width: `${windowsAnalyzed === 0 ? speechProgress : Math.min(riskScore, 100)}%` }}
           />
         </div>
         
-        {voiceStatus === 'INSUFFICIENT AUDIO' && (
+        {windowsAnalyzed === 0 && (
           <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] mt-2 font-mono">
-            Accumulated {targetSpeechAnalyzed.toFixed(1)}s / {minRequiredSpeech}s usable speech required for ML model slice
+            {isCallEnded && Number(targetSpeechAnalyzed || 0) < 10.0
+              ? `Call ended: collected ${Number(targetSpeechAnalyzed || 0).toFixed(1)}s speech (<10.0s threshold required for ML evaluation)`
+              : `Accumulated ${Number(targetSpeechAnalyzed || 0).toFixed(1)}s / ${minRequiredSpeech}s usable speech (silence excluded)`}
           </p>
         )}
       </div>
