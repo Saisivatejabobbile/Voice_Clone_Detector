@@ -26,13 +26,13 @@ class SimpleVAD:
     def __init__(
         self,
         sample_rate: int = 16000,
-        energy_threshold: float = 350.0,
+        energy_threshold: float = 150.0,
         zcr_threshold: float = 0.04
     ):
         self.sample_rate = sample_rate
         self.energy_threshold = energy_threshold
         self.zcr_threshold = zcr_threshold
-        self.noise_floor = 100.0
+        self.noise_floor = 50.0
 
     def is_speech(self, pcm_samples: List[int]) -> Tuple[bool, float]:
         """
@@ -223,13 +223,25 @@ class SpeechBufferManager:
     def extract_final_window_wav(self) -> Optional[Tuple[bytes, int, float]]:
         """
         Executed during call termination lifecycle.
-        If total usable speech >= MIN_USABLE_SPEECH_SEC, produces a final window slice.
+        Produces a final window slice of whatever usable speech was accumulated,
+        even if the call was cut under 20.0 seconds (requires at least 1.0s).
         """
         usable_samples = len(self.usable_buffer)
-        if usable_samples < self.min_usable_samples:
+        min_cutoff_samples = int(self.sample_rate * 1.0)
+        if usable_samples < min_cutoff_samples:
             return None
 
-        return self.extract_window_wav()
+        slice_samples = list(self.usable_buffer)
+        self.current_window_id += 1
+        self.last_analyzed_sample_index = usable_samples
+        duration_sec = len(slice_samples) / self.sample_rate
+
+        wav_bytes = self._encode_pcm_to_wav(slice_samples, sample_rate=self.sample_rate)
+        logger.info(
+            f"Call {self.call_id}: Extracted Cutoff/Final Window #{self.current_window_id} "
+            f"({len(slice_samples)} samples, {duration_sec:.2f}s, WAV size={len(wav_bytes):,} bytes)"
+        )
+        return wav_bytes, self.current_window_id, duration_sec
 
     def _encode_pcm_to_wav(self, pcm_samples: List[int], sample_rate: int = 16000) -> bytes:
         """

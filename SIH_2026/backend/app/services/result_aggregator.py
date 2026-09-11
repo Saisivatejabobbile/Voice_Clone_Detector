@@ -232,20 +232,25 @@ class ResultAggregator:
     def finalize_call(self, total_usable_speech_sec: float) -> Dict[str, Any]:
         """
         Execute final verdict aggregation upon call termination.
-        Enforces: INSUFFICIENT AUDIO if total_usable_speech_sec < 20.0s.
+        If any windows have been analyzed (including short-call cutoff analysis),
+        computes the real aggregated verdict.
+        Only marks INSUFFICIENT AUDIO if literally zero analyzed speech exists (< 1.0s).
         """
-        min_speech = getattr(settings, 'MIN_USABLE_SPEECH_SEC', 20.0)
-        if total_usable_speech_sec < min_speech:
+        if len(self.window_history) > 0:
+            self._recalculate_aggregated_verdict()
+            logger.info(
+                f"Call {self.call_id} finalized with {len(self.window_history)} analyzed window(s) "
+                f"({total_usable_speech_sec:.2f}s speech) -> State={self.current_state}, Risk={self.current_risk_score}"
+            )
+        else:
             self.current_state = STATE_INSUFFICIENT_AUDIO
             self.current_confidence = 0.0
             self.current_risk_level = "LOW"
             self.current_risk_score = 0.0
             logger.info(
                 f"Call {self.call_id} terminated with INSUFFICIENT AUDIO "
-                f"({total_usable_speech_sec:.2f}s usable speech < {min_speech}s threshold)"
+                f"({total_usable_speech_sec:.2f}s usable speech - no speech frames captured)"
             )
-        else:
-            self._recalculate_aggregated_verdict()
 
         return self.get_summary()
 

@@ -58,10 +58,38 @@ class LiveCallSessionDetector:
 
         # 1. Target VAD & Buffering
         is_speech = self.buffer_manager.ingest_pcm_chunk(pcm_samples)
+        
+        # Track usable speech progress while accumulating the initial 20-second window
+        usable_sec = self.buffer_manager.get_usable_speech_duration()
+        if self.buffer_manager.current_window_id == 0:
+            last_p = getattr(self, '_last_progress_sec', 0.0)
+            if (usable_sec - last_p) >= 1.0 or (last_p == 0.0 and usable_sec >= 0.5):
+                self._last_progress_sec = usable_sec
+                progress_payload = {
+                    "type": "risk_update",
+                    "call_id": self.call_id,
+                    "voice_status": STATE_INSUFFICIENT_AUDIO,
+                    "risk_level": "LOW",
+                    "risk_score": 0,
+                    "confidence": 0,
+                    "model_confidence": 0,
+                    "target_speech_analyzed": round(usable_sec, 1),
+                    "windows_analyzed": 0,
+                    "recommendation": f"Accumulating target speech samples ({usable_sec:.1f}s / 20.0s required for AI evaluation)...",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                if broadcast_callback:
+                    try:
+                        res = broadcast_callback(progress_payload)
+                        if asyncio.iscoroutine(res):
+                            await res
+                    except Exception as b_err:
+                        logger.warning(f"Call {self.call_id}: Error in progress heartbeat callback: {b_err}")
+
         if not is_speech:
             return None
 
-        # 2. Check if ready for window analysis
+        # 2. Check if ready for window analysis (20.0s reached)
         if self.buffer_manager.is_ready_for_analysis() and not self.is_analyzing:
             # Extract window WAV
             window_data = self.buffer_manager.extract_window_wav()
@@ -211,23 +239,25 @@ class LiveCallSessionDetector:
         total_usable_speech = self.buffer_manager.get_lifetime_speech_duration()
         min_speech = getattr(settings, 'MIN_USABLE_SPEECH_SEC', 20.0)
 
-        # Check if remaining speech warrants a final window
-        if total_usable_speech >= min_speech and self.buffer_manager.is_ready_for_analysis():
-            final_window = self.buffer_manager.extract_final_window_wav()
-            if final_window:
-                wav_bytes, window_id, duration_sec = final_window
-                try:
-                    ml_response = await self.ml_client.analyze_audio(
-                        wav_bytes=wav_bytes,
-                        filename=f"call_{self.call_id}_w{window_id}_final.wav"
-                    )
-                    self.aggregator.add_window_result(
-                        window_id=window_id,
-                        ml_response=ml_response,
-                        duration_seconds=duration_sec
-                    )
-                except Exception as e:
-                    logger.error(f"Call {self.call_id}: Error analyzing final window: {e}")
+        # Check if accumulated speech warrants a final window (even if call was cut under 20.0s)
+        final_window = self.buffer_manager.extract_final_window_wav()
+        if final_window:
+            wav_bytes, window_id, duration_sec = final_window
+            try:
+                logger.info(
+                    f"Call {self.call_id}: Running cutoff/final ML analysis on {duration_sec:.2f}s of speech"
+                )
+                ml_response = await self.ml_client.analyze_audio(
+                    wav_bytes=wav_bytes,
+                    filename=f"call_{self.call_id}_w{window_id}_cutoff.wav"
+                )
+                self.aggregator.add_window_result(
+                    window_id=window_id,
+                    ml_response=ml_response,
+                    duration_seconds=duration_sec
+                )
+            except Exception as e:
+                logger.error(f"Call {self.call_id}: Error analyzing final window: {e}")
 
         # Step 3: Complete in-flight ML requests
         wait_cycles = 0
@@ -264,6 +294,21 @@ class LiveCallSessionDetector:
                 await broadcast_callback(final_payload)
             except Exception as e:
                 logger.warning(f"Call {self.call_id}: Error pushing final verdict: {e}")
+
+        # Direct broadcast to open analysis WebSockets
+        try:
+            from app.websockets.analysis import active_analysis_sessions
+            if self.call_id in active_analysis_sessions:
+                for ws_info in active_analysis_sessions[self.call_id].get("websockets", []):
+                    try:
+                        await ws_info["websocket"].send_json(final_payload)
+                        risk_dup = dict(final_payload)
+                        risk_dup["type"] = "risk_update"
+                        await ws_info["websocket"].send_json(risk_dup)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         # Clean up memory buffers
         self.buffer_manager.clear()

@@ -171,6 +171,10 @@ async def websocket_analysis(
                     "message": "Audio analysis stopped"
                 })
                 logger.info(f"Analysis stopped for call {call_id}")
+                try:
+                    await detector_middleware.terminate_call(call_id)
+                except Exception as term_err:
+                    logger.warning(f"Error terminating detector middleware on stop_analysis for call {call_id}: {term_err}")
             
             elif message_type == "get_summary":
                 # Get buffer stats
@@ -292,17 +296,8 @@ async def handle_audio_chunk(
         else:
             logger.warning(f"Unexpected audio_data type: {type(audio_data)}")
             return
-        # Process audio chunk through the existing legacy pipeline
-        await process_audio_chunk(
-            call_id=call_id,
-            pcm_data=pcm_data,
-            sample_rate=sample_rate,
-            audio_buffers=audio_buffers,
-            ai_client=ai_client,
-            risk_engine=risk_engine,
-            active_analysis_sessions=active_analysis_sessions,
-            receiver_user_id=user_id
-        )
+        # Hook into Voice Spoof Detector & Blockchain Audit Middleware
+        # (Sole authoritative source of truth: gathers 20s of speech or cut-off speech, queries ML model, mines audit block)
 
         # Hook into Voice Spoof Detector & Blockchain Audit Middleware
         async def broadcast_blockchain_update(payload: dict):
