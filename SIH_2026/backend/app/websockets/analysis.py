@@ -271,6 +271,8 @@ async def handle_audio_chunk(
         logger.warning("Received audio_chunk without audio_data")
         return
     
+    speaker_role = message.get("speaker_role", "target")
+
     # Increment analysis count
     if call_id in active_analysis_sessions:
         active_analysis_sessions[call_id]["analysis_count"] += 1
@@ -280,7 +282,7 @@ async def handle_audio_chunk(
     
     # Log every 10th chunk to avoid spam
     if count % 10 == 0:
-        logger.info(f"Processing audio chunk #{count} for call {call_id}")
+        logger.info(f"Processing audio chunk #{count} for call {call_id} (speaker={speaker_role})")
     
     try:
         # Convert audio data to list of integers if needed
@@ -296,10 +298,9 @@ async def handle_audio_chunk(
         else:
             logger.warning(f"Unexpected audio_data type: {type(audio_data)}")
             return
-        # Hook into Voice Spoof Detector & Blockchain Audit Middleware
-        # (Sole authoritative source of truth: gathers 20s of speech or cut-off speech, queries ML model, mines audit block)
 
         # Hook into Voice Spoof Detector & Blockchain Audit Middleware
+        # (Sole authoritative source of truth: gathers 20s of speech or cut-off speech, queries ML model, mines audit block)
         async def broadcast_blockchain_update(payload: dict):
             if call_id in active_analysis_sessions:
                 session = active_analysis_sessions[call_id]
@@ -312,6 +313,7 @@ async def handle_audio_chunk(
         await detector_middleware.process_chunk(
             call_id=call_id,
             pcm_samples=pcm_data,
+            speaker_role=speaker_role,
             broadcast_callback=broadcast_blockchain_update
         )
     

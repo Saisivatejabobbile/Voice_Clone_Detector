@@ -339,6 +339,7 @@ class BlockchainAuditService:
         is_authentic = hash_matches and raw_matches and block_hash_valid
 
         return {
+            "verified": is_authentic,
             "is_valid": is_authentic,
             "tampered": not is_authentic,
             "block_number": matching_block.index,

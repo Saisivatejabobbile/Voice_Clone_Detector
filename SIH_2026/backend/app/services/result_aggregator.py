@@ -1,7 +1,8 @@
 """
 Result Aggregator & Voice State Engine
 Implements application-level voice classification mapping (REAL, CLONED VOICE, UNCERTAIN, INSUFFICIENT AUDIO),
-recency-weighted multi-window aggregation, spoof priority safety rules, and language switching tracking.
+anti-flapping hysteresis decision engine, recency-weighted multi-window aggregation,
+and multi-lingual language tracking.
 """
 
 import logging
@@ -11,7 +12,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# The 4 strictly defined application states
+# The 4 strictly defined user-facing application states (Section 3)
 STATE_REAL = "REAL"
 STATE_CLONED_VOICE = "CLONED VOICE"
 STATE_UNCERTAIN = "UNCERTAIN"
@@ -24,47 +25,62 @@ VALID_APPLICATION_STATES = {
     STATE_INSUFFICIENT_AUDIO
 }
 
+# Stability status states for internal/operator diagnostics (Section 28)
+STABILITY_INITIALIZING = "INITIALIZING"
+STABILITY_STABLE = "STABLE"
+STABILITY_TRANSITIONING = "TRANSITIONING"
+
 
 class ResultAggregator:
     """
-    Session-level result aggregator for a live call.
-    Maintains an immutable chronological history of all ML predictions,
+    Call-level decision engine for live and finalized calls.
+    Maintains an immutable chronological history of all ML window predictions,
     performs multi-window weighted scoring, manages language metadata,
-    and maps raw predictions into the four core application states.
+    and applies hysteresis / anti-flapping rules to ensure the user-facing result
+    remains completely stable rather than oscillating on individual windows.
     """
 
     def __init__(
         self,
         call_id: str,
-        uncertain_threshold: Optional[float] = None
+        uncertain_threshold: Optional[float] = None,
+        min_confirming_windows: int = 2
     ):
         self.call_id = call_id
         self.uncertain_threshold = uncertain_threshold or getattr(settings, 'UNCERTAIN_CONFIDENCE_THRESHOLD', 60.0)
+        self.min_confirming_windows = min_confirming_windows
         
-        # Chronological immutable window records
+        # Chronological immutable window records (Section 13)
         self.window_history: List[Dict[str, Any]] = []
         
-        # Language tracking
+        # Multi-lingual language tracking (Section 22)
         self.detected_languages: List[Dict[str, Any]] = []
         self.primary_language: str = "hindi"
         self.primary_language_code: str = "hi"
 
-        # Current aggregated state
+        # Current call-level decision state (Section 13, 14, 16)
         self.current_state: str = STATE_INSUFFICIENT_AUDIO
+        self.established_state: Optional[str] = None
+        self.stability_status: str = STABILITY_INITIALIZING
+        self.stability_reason: str = "Waiting for initial speech window"
         self.current_confidence: float = 0.0
         self.current_risk_level: str = "LOW"
         self.current_risk_score: float = 0.0
 
+        # Anti-flapping hysteresis tracking
+        self.candidate_state: Optional[str] = None
+        self.consecutive_candidate_count: int = 0
+
         logger.info(
             f"ResultAggregator initialized for call {call_id}: "
-            f"uncertain_threshold={self.uncertain_threshold}%"
+            f"uncertain_threshold={self.uncertain_threshold}%, min_confirming={self.min_confirming_windows}"
         )
 
     def map_single_window_prediction(self, ml_response: Dict[str, Any]) -> str:
         """
-        Map a single ML model response to one of the application states:
+        Map a single raw ML model response to one of the 4 application states (Section 3, 23):
         - REAL
-        - CLONED VOICE
+        - CLONED VOICE (from raw SYNTHETIC or CLONED)
         - UNCERTAIN
         - INSUFFICIENT AUDIO
         """
@@ -77,16 +93,12 @@ class ResultAggregator:
         if prediction == "INSUFFICIENT AUDIO" or ml_response.get("error") == "insufficient_speech":
             return STATE_INSUFFICIENT_AUDIO
 
-        # Ambiguity / low confidence check
+        # Ambiguity / low confidence check -> UNCERTAIN (Section 17)
         prob_diff = abs(real_prob - synth_prob)
         if confidence < self.uncertain_threshold or (prob_diff < 15.0 and confidence < 75.0):
-            logger.info(
-                f"Call {self.call_id}: Prediction '{prediction}' flagged UNCERTAIN "
-                f"(conf={confidence:.1f}%, real={real_prob:.1f}%, synth={synth_prob:.1f}%)"
-            )
             return STATE_UNCERTAIN
 
-        # Classification mapping
+        # Classification mapping: SYNTHETIC / CLONED -> CLONED VOICE
         if prediction == "REAL":
             return STATE_REAL
         elif prediction in ("SYNTHETIC", "CLONED"):
@@ -101,8 +113,8 @@ class ResultAggregator:
         duration_seconds: float
     ) -> Dict[str, Any]:
         """
-        Record a new window response from the ML detector and compute new aggregated verdict.
-        Never overwrites raw scores or deletes previous responses.
+        Record a new window response from the ML detector and compute a stable call-level verdict.
+        Never overwrites raw scores or deletes previous responses (Section 13).
         
         Args:
             window_id: Window sequence index
@@ -115,7 +127,7 @@ class ResultAggregator:
         timestamp = datetime.now(timezone.utc).isoformat()
         mapped_status = self.map_single_window_prediction(ml_response)
 
-        # Track language metadata
+        # Track language metadata (Section 22)
         lang = ml_response.get("language", "hindi")
         lang_code = ml_response.get("detected_language_code", "hi")
         lang_conf = float(ml_response.get("language_confidence", 90.0))
@@ -131,7 +143,7 @@ class ResultAggregator:
         self.primary_language = lang
         self.primary_language_code = lang_code
 
-        # Immutable window entry preserving complete raw payload
+        # Immutable window entry preserving complete raw payload (Section 13, 23)
         window_entry = {
             "window_id": window_id,
             "timestamp": timestamp,
@@ -151,117 +163,211 @@ class ResultAggregator:
         }
         self.window_history.append(window_entry)
 
-        # Recompute aggregated session verdict
-        self._recalculate_aggregated_verdict()
+        # Recompute stable call-level verdict with anti-flapping hysteresis (Section 14, 15, 16)
+        self._recalculate_aggregated_verdict(latest_window=window_entry)
 
+        # Developer debug log matching Section 28 & 30
         logger.info(
-            f"Call {self.call_id} Window #{window_id} recorded: "
-            f"mapped={mapped_status} | aggregated={self.current_state} "
-            f"(conf={self.current_confidence:.1f}%, risk={self.current_risk_level})"
+            f"Call {self.call_id} Window #{window_id}: "
+            f"prediction={window_entry['raw_prediction']}, confidence={window_entry['confidence']:.1f}% | "
+            f"Current call-level decision: {self.current_state} | "
+            f"Stability: {self.stability_status} | Reason: {self.stability_reason}"
         )
 
         return self.get_summary()
 
-    def _recalculate_aggregated_verdict(self) -> None:
+    def _recalculate_aggregated_verdict(self, latest_window: Optional[Dict[str, Any]] = None) -> None:
         """
-        Multi-window recency-weighted aggregation with Safety Priority Rule.
+        Stable Call-Level Decision Engine with Recency-Weighted Scoring and Hysteresis (Section 14, 15, 16).
+        Prevents rapid oscillation:
+        REAL -> CLONED VOICE -> REAL -> CLONED VOICE
+        A single dissenter or weak window does NOT flip an established state.
         """
         if not self.window_history:
             self.current_state = STATE_INSUFFICIENT_AUDIO
+            self.established_state = None
+            self.stability_status = STABILITY_INITIALIZING
+            self.stability_reason = "No speech windows analyzed"
             self.current_confidence = 0.0
             self.current_risk_level = "LOW"
             self.current_risk_score = 0.0
             return
 
-        # 1. Safety Priority Rule:
-        # If any window has a high-confidence CLONED VOICE (SYNTHETIC/CLONED with conf >= 75%)
-        # or two consecutive windows show CLONED VOICE, prioritize CLONED VOICE for operator alert.
-        cloned_windows = [
-            w for w in self.window_history 
-            if w["mapped_status"] == STATE_CLONED_VOICE and w["confidence"] >= self.uncertain_threshold
-        ]
-        
-        has_high_threat = any(w["confidence"] >= 75.0 for w in cloned_windows)
-        has_multiple_spoofs = len(cloned_windows) >= 2
-
-        # 2. Recency-weighted score calculation
-        # Weights: 0.7^(N - 1 - i)
-        weights = []
         n = len(self.window_history)
-        decay = 0.75
-        for i in range(n):
-            w = decay ** (n - 1 - i)
-            weights.append(w)
+
+        # 1. Recency-weighted score calculation
+        # Weights: 0.8^(N - 1 - i)
+        decay = 0.80
+        weights = [decay ** (n - 1 - i) for i in range(n)]
         total_weight = sum(weights) or 1.0
 
         weighted_real_prob = sum(self.window_history[i]["real_probability"] * weights[i] for i in range(n)) / total_weight
         weighted_synth_prob = sum(self.window_history[i]["synthetic_probability"] * weights[i] for i in range(n)) / total_weight
         weighted_confidence = sum(self.window_history[i]["confidence"] * weights[i] for i in range(n)) / total_weight
 
-        # 3. Determine final state
-        if has_high_threat or has_multiple_spoofs:
-            self.current_state = STATE_CLONED_VOICE
-            max_spoof_conf = max(w["confidence"] for w in cloned_windows)
-            self.current_confidence = round(max_spoof_conf, 2)
-            self.current_risk_score = round(max(weighted_synth_prob, max_spoof_conf), 1)
-            self.current_risk_level = "HIGH" if self.current_risk_score >= 70.0 else "MEDIUM"
-            logger.warning(
-                f"Call {self.call_id}: Safety Priority Rule triggered -> CLONED VOICE "
-                f"(high_threat={has_high_threat}, count={len(cloned_windows)}, score={self.current_risk_score}%)"
-            )
-            return
-
-        # Probabilistic evaluation
+        # Candidate assessment from multi-window weighted evidence
         prob_difference = abs(weighted_real_prob - weighted_synth_prob)
-        if weighted_confidence < self.uncertain_threshold or prob_difference < 15.0:
-            self.current_state = STATE_UNCERTAIN
-            self.current_confidence = round(weighted_confidence, 2)
+        if weighted_confidence < self.uncertain_threshold or prob_difference < 12.0:
+            evidence_candidate = STATE_UNCERTAIN
+        elif weighted_synth_prob > weighted_real_prob:
+            evidence_candidate = STATE_CLONED_VOICE
+        else:
+            evidence_candidate = STATE_REAL
+
+        # Window 1: Establish initial call-level baseline
+        if self.established_state is None or self.established_state == STATE_INSUFFICIENT_AUDIO:
+            if evidence_candidate in (STATE_REAL, STATE_CLONED_VOICE):
+                if weighted_confidence >= self.uncertain_threshold:
+                    self.established_state = evidence_candidate
+                    self.current_state = evidence_candidate
+                    self.stability_status = STABILITY_STABLE
+                    self.stability_reason = f"Initial state established as {evidence_candidate} ({weighted_confidence:.1f}% confidence)"
+                else:
+                    self.established_state = STATE_UNCERTAIN
+                    self.current_state = STATE_UNCERTAIN
+                    self.stability_status = STABILITY_STABLE
+                    self.stability_reason = f"Initial window confidence ({weighted_confidence:.1f}%) below threshold, set to UNCERTAIN"
+            else:
+                self.established_state = STATE_UNCERTAIN
+                self.current_state = STATE_UNCERTAIN
+                self.stability_status = STABILITY_STABLE
+                self.stability_reason = "Initial evidence inconclusive (UNCERTAIN)"
+            self.consecutive_candidate_count = 0
+            self.candidate_state = None
+
+        else:
+            # Subsequent windows: Hysteresis / Anti-Flapping evaluation (Section 14 & 16)
+            latest_status = latest_window["mapped_status"] if latest_window else evidence_candidate
+
+            if latest_status == self.established_state:
+                # Latest window confirms the established state
+                self.consecutive_candidate_count = 0
+                self.candidate_state = None
+                self.current_state = self.established_state
+                self.stability_status = STABILITY_STABLE
+                self.stability_reason = f"Evidence consistently confirms established {self.established_state}"
+
+            else:
+                # Latest window differs from established state: Track candidate persistence
+                if self.candidate_state == latest_status:
+                    self.consecutive_candidate_count += 1
+                else:
+                    self.candidate_state = latest_status
+                    self.consecutive_candidate_count = 1
+
+                # Check if strong enough evidence exists to flip the established state
+                can_switch = False
+                switch_reason = ""
+
+                # Rule A: Switching from REAL -> CLONED VOICE
+                # Requires at least min_confirming_windows (>= 2) consecutive CLONED VOICE windows
+                # OR overwhelming weighted synthetic evidence (>= 80%)
+                if self.established_state == STATE_REAL and latest_status == STATE_CLONED_VOICE:
+                    if self.consecutive_candidate_count >= self.min_confirming_windows and weighted_synth_prob >= 65.0:
+                        can_switch = True
+                        switch_reason = f"Confirmed {self.consecutive_candidate_count} consecutive CLONED VOICE windows (weighted synth={weighted_synth_prob:.1f}%)"
+                    elif weighted_synth_prob >= 80.0:
+                        can_switch = True
+                        switch_reason = f"Overwhelming synthetic probability ({weighted_synth_prob:.1f}% >= 80%)"
+
+                # Rule B: Switching from CLONED VOICE -> REAL
+                # Requires at least min_confirming_windows (>= 2) consecutive REAL windows with high confidence
+                elif self.established_state == STATE_CLONED_VOICE and latest_status == STATE_REAL:
+                    if self.consecutive_candidate_count >= self.min_confirming_windows and weighted_real_prob >= 70.0:
+                        can_switch = True
+                        switch_reason = f"Confirmed {self.consecutive_candidate_count} consecutive REAL windows (weighted real={weighted_real_prob:.1f}%)"
+                    elif weighted_real_prob >= 82.0:
+                        can_switch = True
+                        switch_reason = f"Overwhelming real probability ({weighted_real_prob:.1f}% >= 82%)"
+
+                # Rule C: Switching from solid state (REAL or CLONED) -> UNCERTAIN
+                # Requires at least 3 consecutive uncertain windows
+                elif self.established_state in (STATE_REAL, STATE_CLONED_VOICE) and latest_status == STATE_UNCERTAIN:
+                    if self.consecutive_candidate_count >= 3:
+                        can_switch = True
+                        switch_reason = "3 consecutive inconclusive windows"
+
+                # Rule D: Switching from UNCERTAIN -> REAL or CLONED VOICE
+                elif self.established_state == STATE_UNCERTAIN:
+                    if self.consecutive_candidate_count >= self.min_confirming_windows and weighted_confidence >= self.uncertain_threshold:
+                        can_switch = True
+                        switch_reason = f"Sufficient confirmed evidence for {latest_status}"
+
+                if can_switch:
+                    # Execute transition
+                    old_state = self.established_state
+                    self.established_state = latest_status
+                    self.current_state = latest_status
+                    self.consecutive_candidate_count = 0
+                    self.candidate_state = None
+                    self.stability_status = STABILITY_STABLE
+                    self.stability_reason = f"Transitioned from {old_state} to {latest_status}: {switch_reason}"
+                    logger.warning(
+                        f"Call {self.call_id}: State transitioned to {self.current_state} ({switch_reason})"
+                    )
+                else:
+                    # Retain established state - DO NOT FLAP!
+                    self.current_state = self.established_state
+                    self.stability_status = STABILITY_STABLE
+                    self.stability_reason = "Insufficient evidence to change stable result"
+
+        # Update metrics for current state
+        if self.current_state == STATE_CLONED_VOICE:
+            self.current_confidence = round(max(weighted_confidence, weighted_synth_prob), 1)
+            self.current_risk_score = round(max(weighted_synth_prob, self.current_confidence), 1)
+            self.current_risk_level = "HIGH" if self.current_risk_score >= 70.0 else "MEDIUM"
+        elif self.current_state == STATE_REAL:
+            self.current_confidence = round(max(weighted_confidence, weighted_real_prob), 1)
+            self.current_risk_score = round(weighted_synth_prob, 1)
+            self.current_risk_level = "LOW"
+        elif self.current_state == STATE_UNCERTAIN:
+            self.current_confidence = round(weighted_confidence, 1)
             self.current_risk_score = round(weighted_synth_prob, 1)
             self.current_risk_level = "MEDIUM"
-        elif weighted_synth_prob > weighted_real_prob:
-            self.current_state = STATE_CLONED_VOICE
-            self.current_confidence = round(weighted_confidence, 2)
-            self.current_risk_score = round(weighted_synth_prob, 1)
-            self.current_risk_level = "HIGH" if self.current_risk_score >= 70.0 else "MEDIUM"
         else:
-            self.current_state = STATE_REAL
-            self.current_confidence = round(weighted_confidence, 2)
-            self.current_risk_score = round(weighted_synth_prob, 1)
+            self.current_confidence = 0.0
+            self.current_risk_score = 0.0
             self.current_risk_level = "LOW"
 
     def finalize_call(self, total_usable_speech_sec: float) -> Dict[str, Any]:
         """
-        Execute final verdict aggregation upon call termination.
+        Execute final verdict aggregation upon call termination (Section 11, 12, 19, 20).
         If any windows have been analyzed (including short-call cutoff analysis),
-        computes the real aggregated verdict.
+        computes the real final aggregated verdict.
         Only marks INSUFFICIENT AUDIO if literally zero analyzed speech exists (< 1.0s).
         """
         if len(self.window_history) > 0:
             self._recalculate_aggregated_verdict()
             logger.info(
                 f"Call {self.call_id} finalized with {len(self.window_history)} analyzed window(s) "
-                f"({total_usable_speech_sec:.2f}s speech) -> State={self.current_state}, Risk={self.current_risk_score}"
+                f"({total_usable_speech_sec:.2f}s usable speech) -> Final State={self.current_state}, "
+                f"Risk={self.current_risk_score}, Conf={self.current_confidence}%"
             )
         else:
             self.current_state = STATE_INSUFFICIENT_AUDIO
+            self.established_state = STATE_INSUFFICIENT_AUDIO
+            self.stability_status = STABILITY_STABLE
+            self.stability_reason = "Call terminated with insufficient usable speech"
             self.current_confidence = 0.0
             self.current_risk_level = "LOW"
             self.current_risk_score = 0.0
             logger.info(
                 f"Call {self.call_id} terminated with INSUFFICIENT AUDIO "
-                f"({total_usable_speech_sec:.2f}s usable speech - no speech frames captured)"
+                f"({total_usable_speech_sec:.2f}s usable speech < minimum threshold)"
             )
 
         return self.get_summary()
 
     def get_summary(self) -> Dict[str, Any]:
-        """Return standardized user-facing verdict summary."""
+        """Return standardized user-facing and operator verdict summary."""
         return {
             "call_id": self.call_id,
             "voice_status": self.current_state,
             "confidence": self.current_confidence,
             "risk_level": self.current_risk_level,
             "risk_score": self.current_risk_score,
+            "stability_status": self.stability_status,
+            "stability_reason": self.stability_reason,
             "primary_language": self.primary_language,
             "detected_language_code": self.primary_language_code,
             "detected_languages": self.detected_languages,
