@@ -33,9 +33,12 @@ export default function AudioAnalysisPage() {
     setErrorMessage(null);
     setAnalysisResult(null);
 
-    // Validate WAV format
-    if (!file.name.toLowerCase().endsWith('.wav') && !file.type.includes('wav')) {
-      setErrorMessage('Please select a valid .wav audio file.');
+    // Validate audio format
+    const validExtensions = ['.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac'];
+    const hasValidExt = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    const hasValidType = file.type && (file.type.startsWith('audio/') || file.type.includes('wav') || file.type.includes('mp3') || file.type.includes('mpeg'));
+    if (!hasValidExt && !hasValidType) {
+      setErrorMessage('Please select a valid audio file (.wav, .mp3, .ogg, .flac, .m4a).');
       return;
     }
 
@@ -232,7 +235,7 @@ export default function AudioAnalysisPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".wav,audio/wav"
+                accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -260,7 +263,7 @@ export default function AudioAnalysisPage() {
                     {selectedFile.name}
                   </p>
                   <p className="text-xs font-mono text-[#64748B] dark:text-[#94A3B8]">
-                    {(selectedFile.size / 1024).toFixed(1)} KB • WAV Audio Format
+                    {(selectedFile.size / 1024).toFixed(1)} KB • Audio File Format
                   </p>
                   <p className="text-xs text-[#10B981] font-semibold mt-2">
                     Click or drag another file to replace
@@ -269,10 +272,10 @@ export default function AudioAnalysisPage() {
               ) : (
                 <div>
                   <p className="text-base font-bold text-[#0B1F3A] dark:text-white mb-1">
-                    Choose a WAV audio file or drag & drop here
+                    Choose an audio file or drag & drop here
                   </p>
                   <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
-                    Supports 16 kHz Mono or Stereo 16-bit PCM WAV (up to 20MB)
+                    Supports WAV, MP3, M4A, OGG, FLAC (16 kHz converted automatically)
                   </p>
                 </div>
               )}
@@ -446,82 +449,102 @@ export default function AudioAnalysisPage() {
         {analysisResult && (
           <div className="space-y-6 pt-4">
             {/* Clear Primary AI vs Human Verdict Banner */}
-            <div className={`rounded-2xl p-6 sm:p-8 border shadow-lg transition-all ${
-              analysisResult.is_ai || analysisResult.voice_status === 'CLONED VOICE'
-                ? 'bg-gradient-to-r from-rose-500/15 via-rose-500/5 to-transparent border-rose-500/40 text-rose-900 dark:text-rose-100'
-                : 'bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/40 text-emerald-900 dark:text-emerald-100'
-            }`}>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex items-start gap-4">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
-                    analysisResult.is_ai || analysisResult.voice_status === 'CLONED VOICE'
-                      ? 'bg-rose-500 text-white shadow-rose-500/30'
-                      : 'bg-emerald-500 text-white shadow-emerald-500/30'
-                  }`}>
-                    {analysisResult.is_ai || analysisResult.voice_status === 'CLONED VOICE' ? (
-                      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                    )}
-                  </div>
+            {(() => {
+              const isCloned = analysisResult.voice_status === 'CLONED VOICE' || (analysisResult.is_ai && analysisResult.voice_status !== 'UNCERTAIN');
+              const isReal = analysisResult.voice_status === 'REAL';
+              const isUncertain = analysisResult.voice_status === 'UNCERTAIN';
 
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-bold font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
-                        analysisResult.is_ai || analysisResult.voice_status === 'CLONED VOICE'
-                          ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                          : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+              return (
+                <div className={`rounded-2xl p-6 sm:p-8 border shadow-lg transition-all ${
+                  isCloned
+                    ? 'bg-gradient-to-r from-rose-500/15 via-rose-500/5 to-transparent border-rose-500/40 text-rose-900 dark:text-rose-100'
+                    : isReal
+                    ? 'bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/40 text-emerald-900 dark:text-emerald-100'
+                    : 'bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border-amber-500/40 text-amber-900 dark:text-amber-100'
+                }`}>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
+                        isCloned
+                          ? 'bg-rose-500 text-white shadow-rose-500/30'
+                          : isReal
+                          ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                          : 'bg-amber-500 text-white shadow-amber-500/30'
                       }`}>
-                        {analysisResult.voice_status}
-                      </span>
-                      <span className="text-xs font-mono text-[#64748B] dark:text-[#94A3B8]">
-                        Confidence: {analysisResult.confidence}%
-                      </span>
+                        {isCloned ? (
+                          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        ) : isReal ? (
+                          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs font-bold font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full ${
+                            isCloned
+                              ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                              : isReal
+                              ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                          }`}>
+                            {analysisResult.voice_status}
+                          </span>
+                          <span className="text-xs font-mono text-[#64748B] dark:text-[#94A3B8]">
+                            Confidence: {analysisResult.confidence}%
+                          </span>
+                        </div>
+
+                        <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                          {isCloned
+                            ? 'AI Generated / Cloned Voice Detected'
+                            : isReal
+                            ? 'Authentic Human Voice Verified'
+                            : 'Ambiguous / Inconclusive Speech Signal'}
+                        </h2>
+
+                        <p className="text-sm font-medium mt-1 text-[#475569] dark:text-[#94A3B8] max-w-3xl">
+                          {analysisResult.recommendation}
+                        </p>
+                      </div>
                     </div>
 
-                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                      {analysisResult.is_ai || analysisResult.voice_status === 'CLONED VOICE'
-                        ? 'AI Generated / Cloned Voice Detected'
-                        : 'Authentic Human Voice Verified'}
-                    </h2>
-
-                    <p className="text-sm font-medium mt-1 text-[#475569] dark:text-[#94A3B8] max-w-3xl">
-                      {analysisResult.recommendation}
-                    </p>
+                    {/* Probability Distribution Pill */}
+                    <div className="flex flex-col gap-2 min-w-[220px] p-4 bg-white/70 dark:bg-[#0B1524]/70 backdrop-blur rounded-xl border border-slate-200 dark:border-[#1E3A5F]">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-rose-600 dark:text-rose-400">AI Synthetic</span>
+                        <span className="font-mono text-rose-600 dark:text-rose-400">
+                          {analysisResult.synthetic_probability}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
+                        <div
+                          className="bg-rose-500 h-full transition-all duration-500"
+                          style={{ width: `${analysisResult.synthetic_probability}%` }}
+                        />
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-500"
+                          style={{ width: `${analysisResult.real_probability}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-emerald-600 dark:text-emerald-400">Human Voice</span>
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                          {analysisResult.real_probability}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {/* Probability Distribution Pill */}
-                <div className="flex flex-col gap-2 min-w-[220px] p-4 bg-white/70 dark:bg-[#0B1524]/70 backdrop-blur rounded-xl border border-slate-200 dark:border-[#1E3A5F]">
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-rose-600 dark:text-rose-400">AI Synthetic</span>
-                    <span className="font-mono text-rose-600 dark:text-rose-400">
-                      {analysisResult.synthetic_probability}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
-                    <div
-                      className="bg-rose-500 h-full transition-all duration-500"
-                      style={{ width: `${analysisResult.synthetic_probability}%` }}
-                    />
-                    <div
-                      className="bg-emerald-500 h-full transition-all duration-500"
-                      style={{ width: `${analysisResult.real_probability}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-emerald-600 dark:text-emerald-400">Human Voice</span>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400">
-                      {analysisResult.real_probability}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Embedded Complete Risk Dashboard */}
             <div>
